@@ -1,0 +1,53 @@
+.editor {
+    display: flex;
+    padding: 20px;
+    flex-direction: column;
+}
+
+.editor textarea.preview {
+    margin: auto;
+    width: 100%;
+    height: 700px;
+}
+
+.editor button {
+    width: auto;
+}
+
+.pages {
+    display: flex;
+    flex-direction: column;
+}
+
+.pages div {
+    border-top-left-radius: 0px;
+}
+
+.pages textarea {
+    border-top-left-radius: 0px;
+}
+
+.stats {
+    display: flex;
+    flex-wrap: wrap;
+    padding: 5px;
+    margin-top: 10px;
+}
+
+
+
+.stats * {
+    margin:auto;
+    margin-top: 5px;
+    margin-bottom: 5px;
+    background-color: rgb(224, 220, 197);
+}
+
+div.preview {
+    padding: 10px;
+}
+
+.editor button {
+    border-bottom-left-radius: 0px;
+    border-bottom-right-radius: 0px;
+}

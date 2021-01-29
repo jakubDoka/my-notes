@@ -1,0 +1,28 @@
+.base {
+    text-decoration: inherit;
+    font-size: inherit;
+    color: inherit;
+    font-style: inherit;
+    font-weight: inherit;
+}
+
+.italic {
+    font-style: italic;
+}
+
+.bold {
+    font-weight: bold;
+}
+
+.title {
+    font-size: 30px;
+}
+
+.underline {
+    text-decoration: underline;
+}
+
+tab {
+    margin-left: 2em;
+}
+

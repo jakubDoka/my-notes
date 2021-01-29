@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="stiles/general.css">
+    <link rel="stylesheet" href="stiles/index.css">
+</head>
+<body>
+    <div id="menu"></div>
+    <div class="b-elem filters">
+        <div class="f-elem filters">
+            <textarea id="name" cols="20" rows="1" placeholder="name..."></textarea>
+            <textarea id="author" cols="20" rows="1" placeholder="author name..."></textarea>
+            <select id="school" class="tooltip">   
+                <option value="elementary-middle">school: elementary-middle</option>
+                <option value="high">school: high</option>
+                <option value="university">school: university</option>
+            </select> 
+            <textarea id="year" cols="20" rows="1" placeholder="year..."></textarea>
+            <textarea id="month" cols="20" rows="1" placeholder="month..."></textarea>
+            <textarea id="subject" cols="20" rows="1" placeholder="subject..."></textarea>
+            <textarea id="theme" cols="20" rows="1" placeholder="theme..."></textarea>
+            <button id="refresh">refresh</button>
+        </div>
+    </div>
+    <div class="b-elem results">
+        <div class="f-elem" id="results">
+        </div>
+    </div>
+</body>
+
+<script src="tools/general.js"></script>
+<script src="index.js"></script>
+<script src="tools/embedder.js" source="components/menu.html" target="menu"></script>
+
+</html>

@@ -1,0 +1,167 @@
+div.wrapper {
+    display: flex;
+    align-content: center;
+    text-align: center;
+    flex-direction: column;
+    padding: 20px;
+    width: min-content;
+    margin: auto;
+}
+
+button {
+    background-color: rgb(190, 190, 190);
+    border: 0px;
+    margin: auto;
+}
+
+* {
+    border-radius: 10px;
+    font-family: "Tahoma";
+}
+
+textarea {
+    resize: none;
+    border: 0px;
+}
+
+input {
+    border: 0px;
+}
+
+select {
+    resize: none;
+    border: 0px;
+}
+
+html { 
+    background: url(https://c1.wallpaperflare.com/preview/330/375/636/class-diary-exam-homework.jpg) no-repeat center center fixed; 
+    -webkit-background-size: cover;
+    -moz-background-size: cover;
+    -o-background-size: cover;
+    background-size: cover;
+}
+
+.menu {
+    display: flex;
+    align-content: center;
+    margin-bottom: 20px;
+}
+
+div.menu a {
+    margin-right: 10px;
+    margin-left: 10px;
+}
+
+.menu div {
+    padding: 5px 5px;
+    width: 100%;
+}
+
+.menu textarea {
+    margin-left: auto;
+    margin-right: 0;
+}
+
+img.search {
+    margin-left: 10px;
+    width: 30px;
+}
+
+.b-elem {
+    background-color: rgba(255, 255, 255, 0.5);
+    backdrop-filter: blur(10px);
+    padding: 20px;
+}
+
+.f-elem {
+    background-color: rgba(48, 48, 48, 0.5);
+    padding: 10px;
+    overflow-x: auto;
+}
+
+.bm {
+    margin-bottom: 20px;
+}
+
+.tm {
+    margin-top: 20px;
+}
+
+.lm {
+    margin-left: 20px;
+}
+
+.rm {
+    margin-right: 20px;
+}
+
+.text-center {
+    text-align: center;
+}
+
+.text-box {
+    background-color: rgb(28, 36, 46);
+    color: rgb(224, 220, 197);
+    padding: 5px;
+}
+
+.highlight {
+    background-color:  rgb(224, 220, 197);
+}
+
+.text-box hr {
+    border: 0px;
+    border-top: 0.1px solid rgb(97, 91, 49);
+    margin: 0;
+}
+
+/* Tooltip container */
+.tooltip {
+    position: relative;
+    display: inline-block;
+    border-bottom: 1px dotted black; /* If you want dots under the hoverable text */
+  }
+  
+  /* Tooltip text */
+  .tooltip .tooltiptext {
+    visibility: hidden;
+    width: 120px;
+    background-color: #555;
+    color: #fff;
+    text-align: center;
+    padding: 5px 0;
+    border-radius: 6px;
+  
+    /* Position the tooltip text */
+    position: absolute;
+    z-index: 1;
+    bottom: 125%;
+    left: 50%;
+    margin-left: -60px;
+  
+    /* Fade in tooltip */
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  
+  /* Tooltip arrow */
+  .tooltip .tooltiptext::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: #555 transparent transparent transparent;
+  }
+  
+  /* Show the tooltip text when you mouse over the tooltip container */
+  .tooltip:hover .tooltiptext {
+    visibility: visible;
+    opacity: 1;
+  }
+
+
+
+

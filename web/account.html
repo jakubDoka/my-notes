@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="stiles/general.css">
+    <link rel="stylesheet" href="stiles/account.css">
+</head>
+<body>
+    <div id="menu"></div>
+    <div class="b-elem bm">
+        <div class="profile f-elem">
+            <div class="desc">Profile</div> 
+            <div id="edit" class="edit">
+                <div class="text-box edit-fields">
+                    <span id="name">name</span>
+                    <textarea hidden id="name-a" cols="30" rows="1" placeholder="new name..."></textarea>
+                    <span id="colors-select" class="colors"></span>
+                    <input type="color" id="color-pick" hidden>
+                    <button id="add-color" hidden>add color</button>
+                    <img hidden id="trash" src="https://d1nhio0ox7pgb.cloudfront.net/_img/o_collection_png/green_dark_grey/256x256/plain/garbage_can.png">
+                </div>
+                
+                <div>
+                    <button id="edit-b">edit</button>
+                    <button id="save-b" hidden>save</button>
+                    <button id="back-b" hidden>back</button>
+                    <span hidden id="hint">you can delete or change order of colors by dragging them</span> 
+                </div>
+                <div id="error" class="error"></div>
+            </div>
+        </div>
+    </div>
+    <div class="b-elem">
+        <div class="f-elem">
+            <div class="desc">Drafts</div> 
+            <div id="error2" class="error"></div>
+            <table id="drafts" class="text-box text-color draft-table">
+                <tr>
+                    <th>name</th>
+                    <th>subject</th>
+                    <th>theme</th>
+                    <th>year</th>
+                    <th>month</th>
+                    <th></th>
+                </tr>
+            </table>
+            <div class="desc">Published</div> 
+            <table id="published" class="text-box text-color draft-table">
+                <tr>
+                    <th>name</th>
+                    <th>subject</th>
+                    <th>theme</th>
+                    <th>year</th>
+                    <th>month</th>
+                    <th></th>
+                </tr>
+            </table>
+        </div>
+    </div>
+    <div class="notes"></div>
+</body>
+<script src="tools/general.js"></script>
+<script src="tools/embedder.js" source="components/menu.html" target="menu"></script>
+<script src="account.js"></script>
+</html>

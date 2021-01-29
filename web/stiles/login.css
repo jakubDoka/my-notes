@@ -1,0 +1,19 @@
+div.login {
+    display: flex;
+    align-content: center;
+    flex-direction: column;
+    padding: 10px;
+    width: 300px;
+}
+
+div.login textarea {
+    margin-bottom: 10px;
+}
+
+div.login input {
+    margin-bottom: 10px;
+}
+
+div.login div {
+    margin-bottom: 10px;
+}

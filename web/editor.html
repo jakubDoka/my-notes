@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="stiles/general.css">
+    <link rel="stylesheet" href="stiles/markdown.css">
+    <link rel="stylesheet" href="stiles/editor.css">
+</head>
+<body>
+    <div id="menu"></div>
+    <div class="b-elem editor">
+        <div id="error" class="error"></div>
+        <div>
+            <button id="raw-b">raw</button>
+            <button id="preview-b">preview</button>
+            <button id="shortcuts-b">shortcuts</button>
+            <button id="save" disabled>save</button>
+            <button id="publish">publish</button>
+        </div>
+        <div class="pages">
+            <textarea id="raw" hidden class="text-box update" rows="40"></textarea>
+            <div id="preview" class="text-box" hidden></div>
+            <div id="shortcuts" class="text-box shortcuts"></div>
+        </div>
+        <div class="text-box stats">
+            <textarea id="name" cols="20" rows="1" class="update" placeholder="name..."></textarea>
+            <select id="school" class="update">
+                <option value="elementary-middle">elementary-middle</option>
+                <option value="high">high</option>
+                <option value="university">university</option>
+            </select> 
+            <input type="number" id="year" cols="20" rows="1" class="update" placeholder="year..."></textarea>
+            <input type="number" id="month" cols="20" rows="1" class="update" placeholder="month..."></textarea>
+            <textarea id="subject" cols="20" rows="1" class="update" placeholder="subject..."></textarea>
+            <textarea id="theme" cols="20" rows="1" class="update" placeholder="theme..."></textarea>
+        </div>
+    </div>
+</body>
+
+<script src="tools/general.js"></script>
+<script src="tools/embedder.js" source="components/menu.html" target="menu"></script>
+<script src="tools/markdown.js"></script>
+<script src="tools/undo.js"></script>
+<script src="editor.js"></script>
+
+</html>
