@@ -14,6 +14,11 @@ var (
 	ErrImpossible = NErr("error that just happened should not be possible under expected corcompstances, report this if you can reason about your actions")
 )
 
+// RawID is used for retrieving just ids
+type RawID struct {
+	ID ID `bson:"_id"`
+}
+
 // Account is user account, it contains password in form oh hash
 type Account struct {
 	ID    ID `bson:"_id"`

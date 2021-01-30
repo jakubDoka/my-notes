@@ -1,6 +1,7 @@
 package mongo
 
 import (
+	"gogen/str"
 	"myNotes/core"
 	"net/url"
 	"strconv"
@@ -24,7 +25,7 @@ func Inc(target bson.M) bson.M {
 }
 
 // Or takes bson filters and creates OR query
-func Or(targets ...bson.M) bson.M {
+func Or(targets ...interface{}) bson.M {
 	return bson.M{"$or": targets}
 }
 
@@ -33,41 +34,55 @@ func ID(id core.ID) bson.M {
 	return bson.M{"_id": id}
 }
 
-// NoteFilter creates filter for searching notes
-func NoteFilter(values url.Values, published bool) bson.D {
+// NoteFilter creates filter for searching notes, passed url values have to contain keys with non empty
+// lists even if you are not filtering them, if first value under key is "" then its ignored
+func (d *DB) NoteFilter(values url.Values, published bool) bson.D {
 	filter := bson.D{}
 
-	if val := values["author"]; val[0] != "" {
-		filter = append(filter, E("author", val))
+	// author is really annoing but important
+	if val := values["author"][0]; val != "" {
+		if str.StartsWith(val, ExactLabel) { // take care of exact
+			ac, err := d.AccountByName(val[len(ExactLabel):])
+			if err == nil {
+				filter = append(filter, E("author", ac.ID))
+			}
+		} else { // worst part, we have to collect ids of all possible authors
+			ids, err := d.AccountIdsForName(val)
+			if err != nil {
+				panic(err)
+			}
+			if len(ids) != 0 {
+				eIds := make([]interface{}, len(ids))
+				for i, id := range ids {
+					eIds[i] = bson.M{"author": id.ID}
+				}
+				filter = append(filter, E("$or", eIds))
+			}
+		}
 	}
 
-	if val := values["name"]; val[0] != "" {
-		filter = append(filter, StartsWith("name", val[0]))
+	// again if string query starts with ExactLabel we will pick only exact matches
+	// othervise use start with operation
+	for _, field := range []string{"subject", "theme", "name"} {
+		if val := values[field][0]; val != "" {
+			if str.StartsWith(val, ExactLabel) {
+				filter = append(filter, E(field, val))
+			} else {
+				filter = append(filter, StartsWith(field, val[len(ExactLabel):]))
+			}
+		}
+	}
+
+	for _, field := range []string{"year", "month"} {
+		if val := values[field][0]; val != "" {
+			i, err := strconv.Atoi(val)
+			if err == nil {
+				filter = append(filter, E(field, i))
+			}
+		}
 	}
 
 	filter = append(filter, E("school", School(values["school"][0])))
-
-	if val := values["year"]; val[0] != "" {
-		i, err := strconv.Atoi(val[0])
-		if err == nil {
-			filter = append(filter, E("year", i))
-		}
-	}
-
-	if val := values["month"]; val[0] != "" {
-		i, err := strconv.Atoi(val[0])
-		if err == nil {
-			filter = append(filter, E("month", i))
-		}
-	}
-
-	if val := values["subject"]; val[0] != "" {
-		filter = append(filter, StartsWith("subject", val[0]))
-	}
-
-	if val := values["theme"]; val[0] != "" {
-		filter = append(filter, E("theme", val[0]))
-	}
 
 	if published {
 		filter = append(filter, E("published", true))
@@ -89,9 +104,10 @@ func E(key string, value interface{}) bson.E {
 // School converts string to coresponding int value
 func School(name string) int {
 	name = strings.ToLower(name)
+	// 0 is considered none and so whatewer is inputted that is not contained in map will be none
 	return map[string]int{
-		"elementary-middle": 0,
-		"high":              1,
-		"university":        2,
+		"elementary-middle": 1,
+		"high":              2,
+		"university":        3,
 	}[name]
 }

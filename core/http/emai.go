@@ -21,7 +21,7 @@ type EmailAccount struct {
 }
 
 func init() {
-	bts, err := ioutil.ReadFile("../../email.json")
+	bts, err := ioutil.ReadFile("email.json")
 	if err != nil {
 		panic(err)
 	}

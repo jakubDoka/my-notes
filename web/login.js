@@ -36,8 +36,9 @@ singIn.onclick = function(ev) {
     err.innerHTML = ""
     sha256(password).then((str)=>{
         fetch(`/register?n=${nm.value}&p=${str}&e=${email.value}`).then(re=>re.json()).then(j => {
-            if (j.Status != "success") {
-                err.innerHTML = j.Status
+            const err2 = getErr(j)
+            if (err2) {
+                err.innerHTML = err2
             } else {
                 err.innerHTML = `account successfully created, we sent you verification email,
                  enter the code and press verify, then you can login`
@@ -55,8 +56,9 @@ verify.onclick = function(ev) {
     sha256(password).then((str)=>{
         fetch(`/verify?n=${nm.value}&p=${str}&c=${code.value}`).then((re)=>{
             re.json().then((j) => {
-                if (j.Status != "success") {
-                    err.innerHTML = j.Status
+                const err2 = getErr(j)
+                if (err2) {
+                    err.innerHTML = err2
                 } else {
                     err.innerHTML = "your email was verified, you can now login"
                 }
@@ -75,12 +77,10 @@ login.onclick = function(ev) {
     sha256(password).then((str)=>{
         fetch(`/login?n=${nm.value}&p=${str}`).then((re)=>{
             re.json().then((j) => {
-                if (j.Status != "success") {
-                    elem("error").innerHTML = j.Status
+                const err2 = getErr(j)
+                if (err2) {
+                    err.innerHTML = err2
                 } else {
-                    alert(`we used one cookie to store your user information so you don't 
-                    have to login anytime you do anything, the cookie will be deleted when 
-                    you close a browser so you then have to er-log, to delete cookie use logout`)
                     window.location.href = "account.html"
                 }
             })

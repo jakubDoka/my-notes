@@ -1,17 +1,9 @@
-elem("refresh").addEventListener("click", search)
+const refresh = elem("refresh")
+const query = searchSetup()
 
-function search(ev) {
+refresh.onclick = function(ev) {
     ev.preventDefault()
-    const name = elem("name").value
-    const school = elem("school").value
-    const year = elem("month").value
-    const month = elem("month").value
-    const subject = elem("subject").value
-    const theme = elem("theme").value
-
-    fetch(`/search?name=${name}&school=${school}&year=${year}&subject=${subject}&theme=${theme}&month=${month}`).then(re => {
-        re.json().then( js => {
-            console.log(js)
-        })    
+    search(query).then(j => {
+        if(j.Resp.Status == "success")
     })
 }

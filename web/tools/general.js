@@ -111,7 +111,11 @@ function buildRequest(params, name, provided) {
     params.forEach((e, i) => {
         url += e + "="
         if(provided[e] != undefined) {
-            url += provided[e]
+            if(provided[e].value != undefined) {
+                url += provided[e].value
+            } else {
+                url += provided[e]
+            }
         }
         if(i != params.length-1) {
             url += "&"
@@ -136,5 +140,13 @@ function rgb2hex(rgb) {
 
 function hex(x) {
     return isNaN(x) ? "00" : hexDigits[(x - x % 16) / 16] + hexDigits[x % 16];
+}
+
+function getErr(response) {
+    if((response.Status) ? response.Status == "success" : response.Resp.Status == "success") {
+        return undefined
+    } else {
+        return (response.Status) ? response.Status : response.Resp.Status
+    }
 }
 

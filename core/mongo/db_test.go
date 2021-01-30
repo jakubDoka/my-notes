@@ -2,6 +2,8 @@ package mongo
 
 import (
 	"myNotes/core"
+	"net/url"
+	"strconv"
 	"testing"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -57,6 +59,130 @@ func TestDifTypes(t *testing.T) {
 		t.Error(ac, err)
 	}
 
+}
+
+func TestSearch(t *testing.T) {
+	db := Setup()
+	acs := []core.Account{
+		{Name: "hh"},
+		{Name: "hhb"},
+		{Name: "hk"},
+		{Name: "ah"},
+	}
+
+	noQuery := url.Values{
+		"name":    {""},
+		"school":  {""},
+		"year":    {""},
+		"month":   {""},
+		"subject": {""},
+		"theme":   {""},
+		"author":  {""},
+	}
+
+	for i := range acs {
+		acs[i].Email = strconv.Itoa(i)
+		db.AddAccount(&acs[i])
+	}
+
+	nts := []core.Note{
+		{Name: "aa", Author: 1, Year: 2, Month: 3, Theme: "a", Subject: "f", School: 0},
+		{Name: "aab", Author: 1, Year: 1, Month: 5, Theme: "a", Subject: "g", School: 0},
+		{Name: "bb", Author: 2, Year: 5, Month: 6, Theme: "fa", Subject: "g", School: 0},
+		{Name: "bc", Author: 0, Year: 2, Month: 6, Theme: "ca", Subject: "fa", School: 0},
+	}
+
+	for i := range nts {
+		db.AddNote(&nts[i])
+	}
+
+	testCases := []struct {
+		desc    string
+		query   url.Values
+		results []core.NotePreview
+	}{
+		{
+			desc:  "no filter",
+			query: noQuery,
+			results: []core.NotePreview{
+				{Name: "aa", Author: 1, ID: 0},
+				{Name: "aab", Author: 1, ID: 1},
+				{Name: "bb", Author: 2, ID: 2},
+				{Name: "bc", Author: 0, ID: 3},
+			},
+		},
+
+		{
+			desc: "exact author",
+			query: url.Values{
+				"name":    {""},
+				"school":  {""},
+				"year":    {""},
+				"month":   {""},
+				"subject": {""},
+				"theme":   {""},
+				"author":  {"#hh"},
+			},
+			results: []core.NotePreview{
+				{Name: "bc", Author: 0, ID: 3},
+			},
+		},
+
+		{
+			desc: "author",
+			query: url.Values{
+				"name":    {""},
+				"school":  {""},
+				"year":    {""},
+				"month":   {""},
+				"subject": {""},
+				"theme":   {""},
+				"author":  {"hh"},
+			},
+			results: []core.NotePreview{
+				{Name: "aa", Author: 1, ID: 0},
+				{Name: "aab", Author: 1, ID: 1},
+				{Name: "bc", Author: 0, ID: 3},
+			},
+		},
+
+		{
+			desc: "regular",
+			query: url.Values{
+				"name":    {"aa"},
+				"school":  {""},
+				"year":    {""},
+				"month":   {""},
+				"subject": {""},
+				"theme":   {"a"},
+				"author":  {"hh"},
+			},
+			results: []core.NotePreview{
+				{Name: "aa", Author: 1, ID: 0},
+				{Name: "aab", Author: 1, ID: 1},
+			},
+		},
+	}
+	for _, tC := range testCases {
+		t.Run(tC.desc, func(t *testing.T) {
+			res := db.SearchNote(tC.query, false)
+			if len(res) != len(tC.results) {
+				t.Error(res, "!=", tC.results)
+				return
+			}
+
+			mp := map[core.NotePreview]bool{}
+			for _, r := range tC.results {
+				mp[r] = true
+			}
+
+			for i := range res {
+				if !mp[res[i]] {
+					t.Error(res, "!=", tC.results)
+				}
+			}
+		})
+	}
 }
 
 func Setup() *DB {

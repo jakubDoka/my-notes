@@ -21,7 +21,8 @@ const (
 	CounterN = "CounterN"
 	CounterA = "CounterA"
 
-	Verified = "ok"
+	Verified   = "ok"
+	ExactLabel = "#"
 
 	MaxCursorSize  = 50
 	MaxPreviewSize = 400
@@ -171,6 +172,16 @@ func (d *DB) AccountByName(name string) (ac core.Account, err error) {
 	return
 }
 
+// AccountIdsForName collects all account ids witch name starts with given string
+func (d *DB) AccountIdsForName(name string) (ids []core.RawID, err error) {
+	c, err := d.Accounts.Find(d.Ctx, bson.D{StartsWith("name", name)})
+	if err != nil {
+		return
+	}
+	err = c.All(d.Ctx, &ids)
+	return
+}
+
 // LoginAccount returns account with given password and name
 func (d *DB) LoginAccount(name, password string) (ac core.Account, err error) {
 	err = d.Accounts.FindOne(d.Ctx, bson.M{"name": name, "password": password}).Decode(&ac)
@@ -312,7 +323,7 @@ func (d *DB) UpdateNote(nt *core.Note) {
 
 // SearchNote returns fitting search results for given parameters
 func (d *DB) SearchNote(values url.Values, published bool) []core.NotePreview {
-	res, err := d.Notes.Find(d.Ctx, NoteFilter(values, published))
+	res, err := d.Notes.Find(d.Ctx, d.NoteFilter(values, published))
 	if err != nil {
 		panic(err)
 	}

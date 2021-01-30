@@ -58,8 +58,9 @@ function createColor(color) {
 
 var account = undefined
 fetch("/account").then(r => r.json().then(j => {
-    if (j.Resp.Status != "success") {
-        gotoLogin(j.Resp.Status)
+    const err = getErr(j)
+    if (err) {
+        gotoLogin(err)
         return
     } else {
         account = j.Account
@@ -77,8 +78,9 @@ fetch("/account").then(r => r.json().then(j => {
     fetch("components/draft.html").then(f => f.text()).then(t => {
         account.Notes.forEach(n => {
             fetch(`/draft?id=${n}`).then(r => r.json().then(j => {
-                if(j.Resp.Status != "success") {
-                    error2.innerHTML = j.Resp.Status
+                const err = getErr(j)
+                if(err) {
+                    error2.innerHTML = err
                     return
                 }
                 j = j.Draft
@@ -153,8 +155,9 @@ saveB.onclick = function(e) {
     })
 
     fetch(`/configure?n=${nameA.value}&c=${colors.replaceAll("#", "")}`).then(r => r.json().then(j => {
-        if(j.Status != "success"){
-            error.innerHTML = j.Status
+        const err = getErr(j)
+        if(err){
+            error.innerHTML = err
         } else {
             backB.click()
             nm.innerHTML = nameA.value

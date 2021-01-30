@@ -13,7 +13,7 @@ func main() {
 
 	bot := *http.NEmailSender(http.BotAccount.Email, http.BotAccount.Password, 587)
 
-	ws := http.NWS("127.0.0.1", "./web", 5502, db, bot)
+	ws := http.NWS("127.0.0.1", "./web", 5501, db, bot)
 
 	ws.RegisterHandlers()
 
