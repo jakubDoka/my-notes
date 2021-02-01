@@ -48,6 +48,8 @@ type Note struct {
 
 	Likes, Month, Year, School int
 
+	BornDate int64
+
 	Content string
 
 	Published bool
@@ -65,11 +67,12 @@ type Draft struct {
 
 // NotePreview ...
 type NotePreview struct {
-	ID      ID `bson:"_id"`
-	Author  ID
-	Name    string
-	Likes   int
-	Content string
+	ID       ID `bson:"_id"`
+	Author   ID
+	BornDate uint64
+	Name     string
+	Likes    int
+	Content  string
 }
 
 // ParseID ...

@@ -22,7 +22,7 @@ const (
 	CounterA = "CounterA"
 
 	Verified   = "ok"
-	ExactLabel = "#"
+	ExactLabel = "!"
 
 	MaxCursorSize  = 50
 	MaxPreviewSize = 400
@@ -307,6 +307,7 @@ func (d *DB) IsAuthor(owner, note core.ID) error {
 // AddNote inserts note to database, also generates id
 func (d *DB) AddNote(nt *core.Note) {
 	nt.ID = d.NID(d.CounterN)
+	nt.BornDate = time.Now().UnixNano() / int64(time.Microsecond)
 	_, err := d.Notes.InsertOne(d.Ctx, nt)
 	if err != nil {
 		panic(err)

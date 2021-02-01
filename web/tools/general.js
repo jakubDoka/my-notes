@@ -106,6 +106,14 @@ function searchSetup() {
     }
 }
 
+async function request(command, params, init) {
+    if(params == undefined) {
+        return await fetch(command, init).then(re => re.json())
+    }
+    
+    return await fetch(buildRequest(Object.keys(params), command, params), init).then(re => re.json())
+}
+
 function buildRequest(params, name, provided) {
     var url = "/" + name + "?"
     params.forEach((e, i) => {
@@ -147,6 +155,31 @@ function getErr(response) {
         return undefined
     } else {
         return (response.Status) ? response.Status : response.Resp.Status
+    }
+}
+
+class Time {
+    constructor(milliseconds){
+        this.mil = milliseconds
+        this.sec = this.mil / 1000
+        this.min = this.sec / 60
+        this.hour = this.min / 60
+        this.day = this.hour / 24
+        this.year = this.day / 365
+
+        for(var pr in this) {
+            this[pr] = Math.round(this[pr])
+        }
+    }
+
+    toString() {
+        var res = "nothing"
+        for(var pr in this) {
+            if(this[pr] != 0){
+                res = `${this[pr]}${pr}s`
+            }
+        }
+        return res
     }
 }
 

@@ -57,7 +57,7 @@ function createColor(color) {
 }
 
 var account = undefined
-fetch("/account").then(r => r.json().then(j => {
+request("account").then(j => {
     const err = getErr(j)
     if (err) {
         gotoLogin(err)
@@ -75,34 +75,30 @@ fetch("/account").then(r => r.json().then(j => {
         return
     }
 
-    fetch("components/draft.html").then(f => f.text()).then(t => {
-        account.Notes.forEach(n => {
-            fetch(`/draft?id=${n}`).then(r => r.json().then(j => {
-                const err = getErr(j)
-                if(err) {
-                    error2.innerHTML = err
-                    return
-                }
-                j = j.Draft
+    account.Notes.forEach(n => request("draft", {id: n}).then(j => {
+        const err = getErr(j)
+        if(err) {
+            error2.innerHTML = err
+            return
+        }
+        j = j.Draft
 
-                const str = `<tr>
-                <td>${j.Name}</td>
-                <td>${j.Subject}</td>
-                <td>${j.Theme}</td>
-                <td>${j.Year}</td>
-                <td>${j.Month}</td>
-                <td><div style="background-color: ${ account.Cfg.Colors[1]};"><a href="editor.html?id=${j.ID}">edit</a></div></td>
-                </tr>`
+        const str = `<tr>
+        <td>${j.Name}</td>
+        <td>${j.Subject}</td>
+        <td>${j.Theme}</td>
+        <td>${j.Year}</td>
+        <td>${j.Month}</td>
+        <td><div style="background-color: ${ account.Cfg.Colors[1]};"><a href="editor.html?id=${j.ID}">edit</a></div></td>
+        </tr>`
 
-                if(j.Published) {
-                    published.innerHTML += str
-                } else {
-                    drafts.innerHTML += str
-                }
-            }))
-        })
-    })
-}))
+        if(j.Published) {
+            published.innerHTML += str
+        } else {
+            drafts.innerHTML += str
+        }
+    }))
+})
 
 editB.onclick = function(e) {
     nm.hidden = true
@@ -154,7 +150,7 @@ saveB.onclick = function(e) {
         colors += rgb2hex(e.style.backgroundColor) + " "
     })
 
-    fetch(`/configure?n=${nameA.value}&c=${colors.replaceAll("#", "")}`).then(r => r.json().then(j => {
+    request("configure", {n: nameA.value, c: colors.replaceAll("#", "")}).then(j => {
         const err = getErr(j)
         if(err){
             error.innerHTML = err
@@ -162,7 +158,7 @@ saveB.onclick = function(e) {
             backB.click()
             nm.innerHTML = nameA.value
         }
-    }))
+    })
 }
 
 function loadProfile(aName, aColors) {

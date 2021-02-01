@@ -36,31 +36,29 @@ for(var i in elems) {
 }
 
 if(id != "new") {
-    fetch(`/note?id=${id}`).then(e => {
-        e.json().then(j => {
-            const err = getErr(j)
-            if(err) {
-                error.innerHTML = err
-            } else {
-                var n = j.Note
-                raw.value = n.Content.toString()
-                ident.value = n.Name
-                school.selectedIndex = n.School
-                year.value = n.Year
-                month.value = n.Month
-                subject.value = n.Subject
-                theme.value = n.Theme
-                published = n.Published
-                switchPublish()
-            }
-        })
+    request("note", {id: id}).then(j => {
+        const err = getErr(j)
+        if(err) {
+            error.innerHTML = err
+        } else {
+            var n = j.Note
+            raw.value = n.Content.toString()
+            ident.value = n.Name
+            school.selectedIndex = n.School
+            year.value = n.Year
+            month.value = n.Month
+            subject.value = n.Subject
+            theme.value = n.Theme
+            published = n.Published
+            switchPublish()
+        }
     })
 }
 
 
 var markdown = new Markdown(defaultColors)
 
-fetch("/config").then(r => r.json()).then(j => {
+request("config").then(j => {
     console.log(j)
     markdown = new Markdown((j.Cfg.Colors == null || getErr(j)) ? defaultColors : j.Cfg.Colors)
 }).catch(e => {}).then(() => {
@@ -144,24 +142,30 @@ save.onclick = function(ev) {
 
     error.innerHTML = ""
 
-    fetch(`/save?name=${ident.value}&school=${school.value}&year=${year.value}&subject=${subject.value}&theme=${theme.value}&month=${month.value}&id=${id}`, {
+    request("save", {
+        name: ident.value, 
+        school:school.value, 
+        year:year.value, 
+        subject:subject.value, 
+        theme:theme.value, 
+        month:month.value, 
+        id:id
+    }, {
         method: "POST",
         headers: {
             'content-type': 'text/plain'
         },
         body: raw.value,
     }).then(e => {
-        e.json().then(e => {
-            const err = getErr(j)
-            if(err) {
-                error.innerHTML = err
-            } else {
-                save.disabled = true 
-                if(id != e.ID) {
-                    window.location.href = `editor.html?id=${e.ID}`
-                }
+        const err = getErr(j)
+        if(err) {
+            error.innerHTML = err
+        } else {
+            save.disabled = true 
+            if(id != e.ID) {
+                window.location.href = `editor.html?id=${e.ID}`
             }
-        })
+        }
     })
 }
 
@@ -178,7 +182,7 @@ publish.onclick = function(ev) {
 
     error.innerHTML = ""
 
-    fetch(`/setpublished?id=${id}&b=${!published}`).then(e => e.json().then( j => {
+    request("setpublished", {id: id, b: !published}).then( j => {
         const err = getErr(j)
         if(err) {
             error.innerHTML = err
@@ -186,7 +190,7 @@ publish.onclick = function(ev) {
             published = !published
             switchPublish()
         }
-    }))
+    })
 }
 
 raw.addEventListener("keydown", e => {

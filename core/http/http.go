@@ -175,12 +175,22 @@ func (w *WS) Search(wr http.ResponseWriter, r *http.Request) {
 
 	if args["author"][0] == "#me" {
 		if ac, err := w.GetAccountFromCookie(wr, r); err == nil {
-			args["author"][0] = ac.Name
+			args["author"][0] = "#" + ac.Name
 		}
 	}
 
 	res := w.db.SearchNote(args, true)
-	encoder.Encode(res)
+
+	status := success
+
+	if len(res) == 0 {
+		status = "nothing found"
+	}
+
+	encoder.Encode(SearchResponce{
+		Resp:    Responce{status},
+		Results: res,
+	})
 }
 
 // Login creates cookies to remember user
@@ -213,7 +223,16 @@ func (w *WS) Config(wr http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ac, err := w.GetAccountFromCookie(wr, r)
+	var ac core.Account
+	var err error
+	if val, ok := args["id"]; ok && len(val) != 0 {
+		id, err := core.ParseID(val[0])
+		if err != nil {
+			ac, err = w.db.AccountByID(id)
+		}
+	} else {
+		ac, err = w.GetAccountFromCookie(wr, r)
+	}
 
 	encoder.Encode(ConfigResponce{
 		Resp: NResponce(err),
@@ -454,6 +473,12 @@ func (w *WS) GetAccountFromCookie(wr http.ResponseWriter, r *http.Request) (ac c
 		return
 	}
 	return
+}
+
+// SearchResponce ...
+type SearchResponce struct {
+	Resp    Responce
+	Results []core.NotePreview
 }
 
 // AccountResponce ...

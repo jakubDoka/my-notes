@@ -34,17 +34,15 @@ singIn.onclick = function(ev) {
     }
     
     err.innerHTML = ""
-    sha256(password).then((str)=>{
-        fetch(`/register?n=${nm.value}&p=${str}&e=${email.value}`).then(re=>re.json()).then(j => {
-            const err2 = getErr(j)
-            if (err2) {
-                err.innerHTML = err2
-            } else {
-                err.innerHTML = `account successfully created, we sent you verification email,
-                 enter the code and press verify, then you can login`
-            }
-        })
-    })
+    sha256(password).then((str)=> request("register", {n: nm.value, p: str, e: email.value}).then(j => {
+        const err2 = getErr(j)
+        if (err2) {
+            err.innerHTML = err2
+        } else {
+            err.innerHTML = `account successfully created, we sent you verification email,
+                enter the code and press verify, then you can login`
+        }
+    }))
 }
 
 verify.onclick = function(ev) {
@@ -53,18 +51,14 @@ verify.onclick = function(ev) {
         return
     }
 
-    sha256(password).then((str)=>{
-        fetch(`/verify?n=${nm.value}&p=${str}&c=${code.value}`).then((re)=>{
-            re.json().then((j) => {
-                const err2 = getErr(j)
-                if (err2) {
-                    err.innerHTML = err2
-                } else {
-                    err.innerHTML = "your email was verified, you can now login"
-                }
-            })
-        })
-    })
+    sha256(password).then((str)=> request("verify", {n: nm.value, p: str, c: code.value}).then((j) => {
+        const err2 = getErr(j)
+        if (err2) {
+            err.innerHTML = err2
+        } else {
+            err.innerHTML = "your email was verified, you can now login"
+        }
+    }))
 
 }
 
@@ -74,18 +68,14 @@ login.onclick = function(ev) {
         return
     }
 
-    sha256(password).then((str)=>{
-        fetch(`/login?n=${nm.value}&p=${str}`).then((re)=>{
-            re.json().then((j) => {
-                const err2 = getErr(j)
-                if (err2) {
-                    err.innerHTML = err2
-                } else {
-                    window.location.href = "account.html"
-                }
-            })
-        })
-    })
+    sha256(password).then((str)=> request("login", {n: nm.value, p:str}).then((j) => {
+        const err2 = getErr(j)
+        if (err2) {
+            err.innerHTML = err2
+        } else {
+            window.location.href = "account.html"
+        }
+    }))
 }
 
 function missingName() {
