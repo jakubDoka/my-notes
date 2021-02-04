@@ -1,11 +1,11 @@
 package mongo
 
 import (
-	"gogen/str"
 	"myNotes/core"
-	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/jakubDoka/gogen/str"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -34,20 +34,30 @@ func ID(id core.ID) bson.M {
 	return bson.M{"_id": id}
 }
 
+// Insert inserts a value to the position in array
+func Insert(field string, idx int, value ...interface{}) bson.M {
+	return bson.M{"$push": bson.M{field: bson.M{"$each": value, "$position": idx}}}
+}
+
+// Pop pops slice of elements
+func Pop(field string, idx, length int) bson.M {
+	return bson.M{"$unset": bson.M{field + "." + strconv.Itoa(idx): length}}
+}
+
 // NoteFilter creates filter for searching notes, passed url values have to contain keys with non empty
 // lists even if you are not filtering them, if first value under key is "" then its ignored
-func (d *DB) NoteFilter(values url.Values, published bool) bson.D {
+func (d *DB) NoteFilter(values core.SearchRequest, published bool) bson.D {
 	filter := bson.D{}
 
 	// author is really annoing but important
-	if val := values["author"][0]; val != "" {
-		if str.StartsWith(val, ExactLabel) { // take care of exact
-			ac, err := d.AccountByName(val[len(ExactLabel):])
+	if values.Author != "" {
+		if str.StartsWith(values.Author, ExactLabel) { // take care of exact
+			ac, err := d.AccountByName(values.Author[len(ExactLabel):])
 			if err == nil {
 				filter = append(filter, E("author", ac.ID))
 			}
 		} else { // worst part, we have to collect ids of all possible authors
-			ids, err := d.AccountIdsForName(val)
+			ids, err := d.AccountIdsForName(values.Author)
 			if err != nil {
 				panic(err)
 			}
@@ -63,8 +73,8 @@ func (d *DB) NoteFilter(values url.Values, published bool) bson.D {
 
 	// again if string query starts with ExactLabel we will pick only exact matches
 	// othervise use start with operation
-	for _, field := range []string{"subject", "theme", "name"} {
-		if val := values[field][0]; val != "" {
+	for field, val := range map[string]string{"subject": values.Subject, "theme": values.Theme, "name": values.Name} {
+		if val != "" {
 			if str.StartsWith(val, ExactLabel) {
 				filter = append(filter, E(field, val))
 			} else {
@@ -73,16 +83,13 @@ func (d *DB) NoteFilter(values url.Values, published bool) bson.D {
 		}
 	}
 
-	for _, field := range []string{"year", "month"} {
-		if val := values[field][0]; val != "" {
-			i, err := strconv.Atoi(val)
-			if err == nil {
-				filter = append(filter, E(field, i))
-			}
+	for field, val := range map[string]int{"year": values.Year, "month": values.Month} {
+		if val != 0 {
+			filter = append(filter, E(field, val))
 		}
 	}
 
-	filter = append(filter, E("school", School(values["school"][0])))
+	filter = append(filter, E("school", School(values.School)))
 
 	if published {
 		filter = append(filter, E("published", true))

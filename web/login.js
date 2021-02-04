@@ -34,7 +34,7 @@ singIn.onclick = function(ev) {
     }
     
     err.innerHTML = ""
-    sha256(password).then((str)=> request("register", {n: nm.value, p: str, e: email.value}).then(j => {
+    sha256(password).then((str)=> request("register", {name: nm.value, password: str, email: email.value}).then(j => {
         const err2 = getErr(j)
         if (err2) {
             err.innerHTML = err2
@@ -51,7 +51,7 @@ verify.onclick = function(ev) {
         return
     }
 
-    sha256(password).then((str)=> request("verify", {n: nm.value, p: str, c: code.value}).then((j) => {
+    sha256(password).then((str)=> request("verify", {name: nm.value, password: str, code: code.value}).then((j) => {
         const err2 = getErr(j)
         if (err2) {
             err.innerHTML = err2
@@ -68,7 +68,7 @@ login.onclick = function(ev) {
         return
     }
 
-    sha256(password).then((str)=> request("login", {n: nm.value, p:str}).then((j) => {
+    sha256(password).then((str)=> request("login", {name: nm.value, password: str}).then((j) => {
         const err2 = getErr(j)
         if (err2) {
             err.innerHTML = err2

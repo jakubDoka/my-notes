@@ -36,7 +36,7 @@ for(var i in elems) {
 }
 
 if(id != "new") {
-    request("note", {id: id}).then(j => {
+    request("privatenote", {id: id}).then(j => {
         const err = getErr(j)
         if(err) {
             error.innerHTML = err
@@ -60,7 +60,7 @@ var markdown = new Markdown(defaultColors)
 
 request("config").then(j => {
     console.log(j)
-    markdown = new Markdown((j.Cfg.Colors == null || getErr(j)) ? defaultColors : j.Cfg.Colors)
+    markdown = new Markdown(j.Cfg.Colors)
 }).catch(e => {}).then(() => {
     shortcuts.innerHTML = markdown.convert(
         `<2><t>Shortcuts<t><2>
@@ -182,7 +182,7 @@ publish.onclick = function(ev) {
 
     error.innerHTML = ""
 
-    request("setpublished", {id: id, b: !published}).then( j => {
+    request("setpublished", {id: id, published: !published}).then( j => {
         const err = getErr(j)
         if(err) {
             error.innerHTML = err

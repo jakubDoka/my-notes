@@ -2,7 +2,6 @@ package mongo
 
 import (
 	"myNotes/core"
-	"net/url"
 	"strconv"
 	"testing"
 
@@ -13,9 +12,9 @@ func TestNID(t *testing.T) {
 	db := Setup()
 
 	for i := core.ID(0); i < 4; i++ {
-		id := db.NID(db.CounterN)
-		if id != i {
-			t.Errorf("%d != %d", id, i)
+		id, err := db.NID(db.CounterN)
+		if id != i || err != nil {
+			t.Errorf("%d != %d, %v", id, i, err)
 		}
 	}
 }
@@ -29,7 +28,7 @@ func TestInsert(t *testing.T) {
 		Password: "buhuhu",
 	}
 
-	err := db.AddAccount(&ac)
+	err := db.Account(&ac)
 	if err != nil {
 		panic(err)
 	}
@@ -46,7 +45,7 @@ func TestInsert(t *testing.T) {
 func TestDifTypes(t *testing.T) {
 	db := Setup()
 
-	db.AddNote(&core.Note{
+	db.Note(&core.Note{
 		Name:    "hello",
 		Content: "hello there am sprighstea jsd sa",
 	})
@@ -70,19 +69,9 @@ func TestSearch(t *testing.T) {
 		{Name: "ah"},
 	}
 
-	noQuery := url.Values{
-		"name":    {""},
-		"school":  {""},
-		"year":    {""},
-		"month":   {""},
-		"subject": {""},
-		"theme":   {""},
-		"author":  {""},
-	}
-
 	for i := range acs {
 		acs[i].Email = strconv.Itoa(i)
-		db.AddAccount(&acs[i])
+		db.Account(&acs[i])
 	}
 
 	nts := []core.Note{
@@ -93,17 +82,17 @@ func TestSearch(t *testing.T) {
 	}
 
 	for i := range nts {
-		db.AddNote(&nts[i])
+		db.Note(&nts[i])
 	}
 
 	testCases := []struct {
 		desc    string
-		query   url.Values
+		query   core.SearchRequest
 		results []core.NotePreview
 	}{
 		{
 			desc:  "no filter",
-			query: noQuery,
+			query: core.SearchRequest{},
 			results: []core.NotePreview{
 				{Name: "aa", Author: 1, ID: 0},
 				{Name: "aab", Author: 1, ID: 1},
@@ -113,32 +102,16 @@ func TestSearch(t *testing.T) {
 		},
 
 		{
-			desc: "exact author",
-			query: url.Values{
-				"name":    {""},
-				"school":  {""},
-				"year":    {""},
-				"month":   {""},
-				"subject": {""},
-				"theme":   {""},
-				"author":  {"#hh"},
-			},
+			desc:  "exact author",
+			query: core.SearchRequest{Author: "!hh"},
 			results: []core.NotePreview{
 				{Name: "bc", Author: 0, ID: 3},
 			},
 		},
 
 		{
-			desc: "author",
-			query: url.Values{
-				"name":    {""},
-				"school":  {""},
-				"year":    {""},
-				"month":   {""},
-				"subject": {""},
-				"theme":   {""},
-				"author":  {"hh"},
-			},
+			desc:  "author",
+			query: core.SearchRequest{Author: "hh"},
 			results: []core.NotePreview{
 				{Name: "aa", Author: 1, ID: 0},
 				{Name: "aab", Author: 1, ID: 1},
@@ -148,14 +121,10 @@ func TestSearch(t *testing.T) {
 
 		{
 			desc: "regular",
-			query: url.Values{
-				"name":    {"aa"},
-				"school":  {""},
-				"year":    {""},
-				"month":   {""},
-				"subject": {""},
-				"theme":   {"a"},
-				"author":  {"hh"},
+			query: core.SearchRequest{
+				Name:   "aa",
+				Theme:  "a",
+				Author: "hh",
 			},
 			results: []core.NotePreview{
 				{Name: "aa", Author: 1, ID: 0},
@@ -165,19 +134,23 @@ func TestSearch(t *testing.T) {
 	}
 	for _, tC := range testCases {
 		t.Run(tC.desc, func(t *testing.T) {
-			res := db.SearchNote(tC.query, false)
+			res, err := db.SearchNote(tC.query, false)
+			if err != nil {
+				t.Error(err)
+				return
+			}
 			if len(res) != len(tC.results) {
 				t.Error(res, "!=", tC.results)
 				return
 			}
 
-			mp := map[core.NotePreview]bool{}
+			mp := map[string]bool{}
 			for _, r := range tC.results {
-				mp[r] = true
+				mp[r.String()] = true
 			}
 
 			for i := range res {
-				if !mp[res[i]] {
+				if !mp[res[i].String()] {
 					t.Error(res, "!=", tC.results)
 				}
 			}

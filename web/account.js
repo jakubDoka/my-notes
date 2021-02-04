@@ -56,26 +56,15 @@ function createColor(color) {
     counter++
 }
 
-var account = undefined
-request("account").then(j => {
-    const err = getErr(j)
-    if (err) {
-        gotoLogin(err)
-        return
-    } else {
-        account = j.Account
-        if(account.Cfg.Colors == null) {
-            account.Cfg.Colors = defaultColors
-        }
-        loadProfile(account.Name, account.Cfg.Colors)
-    }
+loadAccount(() => {
+    loadProfile(user.Name, user.Cfg.Colors)
 
-    if(account.Notes == null) {
+    if(user.Notes == null) {
 
         return
     }
 
-    account.Notes.forEach(n => request("draft", {id: n}).then(j => {
+    user.Notes.forEach(n => request("draft", {id: n}).then(j => {
         const err = getErr(j)
         if(err) {
             error2.innerHTML = err
@@ -89,7 +78,7 @@ request("account").then(j => {
         <td>${j.Theme}</td>
         <td>${j.Year}</td>
         <td>${j.Month}</td>
-        <td><div style="background-color: ${ account.Cfg.Colors[1]};"><a href="editor.html?id=${j.ID}">edit</a></div></td>
+        <td><div style="background-color: ${ user.Cfg.Colors[1]};"><a href="editor.html?id=${j.ID}">edit</a></div></td>
         </tr>`
 
         if(j.Published) {
@@ -150,7 +139,7 @@ saveB.onclick = function(e) {
         colors += rgb2hex(e.style.backgroundColor) + " "
     })
 
-    request("configure", {n: nameA.value, c: colors.replaceAll("#", "")}).then(j => {
+    request("configure", {name: nameA.value, colors: colors.replaceAll("#", "")}).then(j => {
         const err = getErr(j)
         if(err){
             error.innerHTML = err

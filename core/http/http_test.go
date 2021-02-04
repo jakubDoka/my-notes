@@ -11,7 +11,8 @@ import (
 )
 
 func TestWSRegisterAccount(t *testing.T) {
-	_, ws := SetupTest()
+	db, ws := SetupTest()
+	defer db.Cancel()
 
 	testCases := []struct {
 		desc   string
@@ -63,14 +64,16 @@ func TestWSRegisterAccount(t *testing.T) {
 
 func TestVerify(t *testing.T) {
 	db, ws := SetupTest()
+	defer db.Cancel()
 
 	ac := core.Account{
 		Name:     "name",
 		Password: "password",
 		Email:    "mlokogrgel@gmail.com",
 	}
-	db.AddAccount(&ac)
-	db.AddAccount(&core.Account{
+
+	db.Account(&ac)
+	db.Account(&core.Account{
 		Name:     "name1",
 		Password: "password",
 		Email:    "jakub.doka2@gmail.com",
@@ -125,17 +128,11 @@ func TestVerify(t *testing.T) {
 
 func TestLogin(t *testing.T) {
 	db, ws := SetupTest()
+	defer db.Cancel()
 
-	ac := core.Account{
-		Name:     "name1",
-		Password: "password",
-		Email:    "mlokogrgel@gmail.com",
-	}
-	db.AddAccount(&ac)
-	ac.Code = mongo.Verified
-	db.UpdateAccount(&ac)
+	_ = MakeVerifiedAccount(db)
 
-	db.AddAccount(&core.Account{
+	db.Account(&core.Account{
 		Name:     "name",
 		Password: "password",
 		Email:    "jakub.doka2@gmail.com",
@@ -185,6 +182,7 @@ func TestLogin(t *testing.T) {
 
 func TestAccount(t *testing.T) {
 	db, ws := SetupTest()
+	defer db.Cancel()
 
 	ac := MakeVerifiedAccount(db)
 
@@ -207,6 +205,7 @@ func TestAccount(t *testing.T) {
 
 func TestConfig(t *testing.T) {
 	db, ws := SetupTest()
+	defer db.Cancel()
 
 	ac := MakeVerifiedAccount(db)
 
@@ -247,10 +246,11 @@ func TestConfig(t *testing.T) {
 
 func TestConfigure(t *testing.T) {
 	db, ws := SetupTest()
+	defer db.Cancel()
 
 	ac := MakeVerifiedAccount(db)
 
-	db.AddAccount(&core.Account{
+	db.Account(&core.Account{
 		Name: "name2",
 	})
 
@@ -325,7 +325,7 @@ func MakeVerifiedAccount(db *mongo.DB) core.Account {
 		Password: "password",
 		Email:    "mlokogrgel@gmail.com",
 	}
-	db.AddAccount(&ac)
+	db.Account(&ac)
 	db.MakeAccountVerified(ac.ID)
 	ac.Code = mongo.Verified
 

@@ -1,5 +1,3 @@
-const defaultColors = ["#b03830", "#b0972a", "#5d62f0"] 
-
 class UndoState {
     constructor(text, start, end) {
         this.text = text
@@ -89,6 +87,7 @@ async function sha256(message) {
 }
 
 const searchParams = ["name", "school", "year", "month", "subject", "theme", "author"]
+const schools = ["none", "elementary-middle", "high", "university"]
 
 async function search(query) {
     return await fetch(buildRequest(searchParams, "search", query)).then(e => e.json())
@@ -110,7 +109,7 @@ async function request(command, params, init) {
     if(params == undefined) {
         return await fetch(command, init).then(re => re.json())
     }
-    
+
     return await fetch(buildRequest(Object.keys(params), command, params), init).then(re => re.json())
 }
 
@@ -180,6 +179,26 @@ class Time {
             }
         }
         return res
+    }
+}
+
+var user = undefined
+
+async function loadAccount(addition) {
+    const j = await request("account")
+    const err = getErr(j)
+    if (err) {
+        gotoLogin(err)
+        return
+    } else {
+        user = j.Account
+        if(user.Cfg.Colors == null) {
+            user.Cfg.Colors = defaultColors
+        }
+    }
+
+    if (addition) {
+        addition()
     }
 }
 

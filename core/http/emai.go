@@ -5,11 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"myNotes/core"
 	"net/http"
 	"net/smtp"
 	"net/url"
+	"os"
+	"strings"
 	"text/template"
+
+	"github.com/jakubDoka/sterr"
 )
 
 // BotAccount for obvious security reasons email and password of a bot is loaded from private file
@@ -21,7 +24,11 @@ type EmailAccount struct {
 }
 
 func init() {
-	bts, err := ioutil.ReadFile("email.json")
+	path := "email.json"
+	if strings.HasSuffix(os.Args[0], ".test.exe") {
+		path = "C:/Users/jakub/Documents/programming/golang/src/myNotes/email.json"
+	}
+	bts, err := ioutil.ReadFile(path)
 	if err != nil {
 		panic(err)
 	}
@@ -34,8 +41,8 @@ func init() {
 
 // errors  related to email handling
 var (
-	ErrInvalidEmail   = core.NErr("invalid email")
-	ErrEmailVerifFail = core.NErr("verification of email failed")
+	ErrInvalidEmail   = sterr.New("invalid email")
+	ErrEmailVerifFail = sterr.New("verification of email failed")
 )
 
 // EmailStatus is for unmarshaling api responce

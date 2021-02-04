@@ -20,8 +20,14 @@ function Colored(start, color) {
     return b 
 }
 
+const defaultColors = ["#b03830", "#b0972a", "#5d62f0"] 
+
 class Markdown {
     constructor(colors) {
+        if(colors == null) {
+            colors = defaultColors
+        }
+
         this.blocks = [
             new Block("t", "title"),
             new Block("b", "bold"),

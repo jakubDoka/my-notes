@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="stiles/general.css">
+    <link rel="stylesheet" href="stiles/markdown.css">
+    <link rel="stylesheet" href="stiles/view.css">
+</head>
+<body>
+    <div id="menu"></div>
+    <div class="b-elem bm">
+        <div id="error" class="error"></div>
+        <div class="f-elem">
+            <div id="info" class="text-box bm info"></div>
+            <div id="content" class="text-box"></div>
+        </div>
+    </div>
+    <div class="b-elem">
+        <div class="f-elem">
+            <div class="ratings bm">
+                <textarea id="comment-a" cols="10" rows="3" placeholder="leave a comment..."></textarea>
+                <button id="add">add comment</button>
+                <img id="like" src="assets/like.png" width="30" height="25">
+                <span id="counter" >2</span>
+            </div>
+            <div id="comments" class="text-box comments">
+                <div class="comment">
+                    <a href="">User</a>
+                    <img src="assets/like.png" width="25">
+                    <span>2</span>
+                    <div>
+                        Some content
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+<script src="tools/markdown.js"></script>
+<script src="tools/general.js"></script>
+<script src="tools/embedder.js" source="components/menu.html" target="menu"></script>
+<script src="view.js"></script>
+</html>

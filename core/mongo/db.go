@@ -4,11 +4,11 @@ import (
 	"context"
 	"math/rand"
 	"myNotes/core"
-	"net/url"
 	"strconv"
 	"sync"
 	"time"
 
+	"github.com/jakubDoka/sterr"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -44,6 +44,10 @@ var (
 		"theme",
 		"author",
 	}
+
+	CommentIndex = []string{
+		"target.id",
+	}
 )
 
 // MakeIndex creates indexing from list of field names
@@ -57,12 +61,13 @@ func MakeIndex(indexes []string) []mongo.IndexModel {
 
 // errors
 var (
-	ErrEmailTaken   = core.NErr("account with ths email already exist")
-	ErrNameTaken    = core.NErr("name is already taken")
-	ErrNotVerified  = core.NErr("account is not verified")
-	ErrNotFound     = core.NErr("not found")
-	ErrInvalidLogin = core.NErr("password or name is incorrect")
-	ErrNotAuthor    = core.NErr("you cannot edit note you are not author of")
+	ErrEmailTaken   = sterr.New("account with ths email already exist")
+	ErrNameTaken    = sterr.New("name is already taken")
+	ErrNotVerified  = sterr.New("account is not verified")
+	ErrNotFound     = sterr.New("not found")
+	ErrInvalidLogin = sterr.New("password or name is incorrect")
+	ErrNotAuthor    = sterr.New("you cannot edit note you are not author of")
+	ErrLimmitRate   = sterr.New("you have to wait %s to take another action")
 )
 
 // DB is main database interface
@@ -75,7 +80,7 @@ type DB struct {
 
 	Cancel context.CancelFunc
 
-	Accounts, Notes, CounterA, CounterN *mongo.Collection
+	Accounts, Notes, Comments, CounterA, CounterN, CounterC *mongo.Collection
 
 	vCodeFactory
 }
@@ -126,22 +131,76 @@ type IDCounter struct {
 }
 
 // NID creates new unique incremental id
-func (d *DB) NID(counter *mongo.Collection) core.ID {
+func (d *DB) NID(counter *mongo.Collection) (core.ID, error) {
 	var c IDCounter
 	err := counter.FindOne(d.Ctx, All).Decode(&c)
 	if err == mongo.ErrNoDocuments {
 		counter.InsertOne(d.Ctx, IDCounter{})
-		return 0
+		return 0, nil
 	} else if err != nil {
-		panic(err)
+		return 0, core.EI(err)
 	}
 
 	_, err = counter.UpdateOne(d.Ctx, All, Inc(bson.M{"value": 1}))
 	if err != nil {
-		panic(err)
+		return 0, core.EI(err)
 	}
 
-	return c.Value + 1
+	return c.Value + 1, nil
+}
+
+// Coll returns collections based of target type
+func (d *DB) Coll(tp core.TargetType) *mongo.Collection {
+	switch tp {
+	case core.CommentT:
+		return d.Comments
+	case core.NoteT:
+		return d.Notes
+	}
+
+	panic("invalid TargetType")
+}
+
+// Replace replaces a document in given collection
+func (d *DB) Replace(collection *mongo.Collection, doc core.IDer) error {
+	_, err := collection.ReplaceOne(d.Ctx, ID(doc.AID()), doc)
+	return core.EI(err)
+}
+
+// CheckLike returns whether document is liked by user
+func (d *DB) CheckLike(id, user core.ID, collection *mongo.Collection) (liked bool, amount int, err error) {
+	return d.Like(id, user, collection, false)
+}
+
+// ChangeLike likes or dislikes the document based of its current state
+func (d *DB) ChangeLike(id, user core.ID, collection *mongo.Collection) (liked bool, amount int, err error) {
+	return d.Like(id, user, collection, true)
+}
+
+// Like can change or return whether user has liked the document and optionally return id
+func (d *DB) Like(id, user core.ID, collection *mongo.Collection, change bool) (liked bool, amount int, err error) {
+	var likes core.Likes
+	err = core.EI(collection.FindOne(d.Ctx, ID(id)).Decode(&likes))
+	if err != nil {
+		return
+	}
+
+	amount = len(likes.Likes)
+
+	i, liked := likes.Likes.BiSearch(user, core.BiSearch)
+	if change {
+		if liked {
+			_, err = collection.UpdateOne(d.Ctx, ID(id), Insert("likes", i, user))
+			amount++
+		} else {
+			_, err = collection.UpdateOne(d.Ctx, ID(id), Pop("likes", i, 1))
+			amount--
+		}
+
+		liked = !liked
+	}
+
+	return
 }
 
 // Drop drops the database, after this DB cannot be used
@@ -153,7 +212,7 @@ func (d *DB) Drop() {
 // AccountByID reads account from database, returns false if account wos not found
 func (d *DB) AccountByID(id core.ID) (ac core.Account, err error) {
 	err = d.Accounts.FindOne(d.Ctx, bson.M{"_id": id}).Decode(&ac)
-	err = AssertNotFound(err)
+	err = core.EI(err)
 	return
 }
 
@@ -168,7 +227,6 @@ func (d *DB) AccountByEmail(email string) (ac core.Account, err error) {
 func (d *DB) AccountByName(name string) (ac core.Account, err error) {
 	err = d.Accounts.FindOne(d.Ctx, bson.M{"name": name}).Decode(&ac)
 	err = AssertNotFound(err)
-
 	return
 }
 
@@ -176,7 +234,7 @@ func (d *DB) AccountByName(name string) (ac core.Account, err error) {
 func (d *DB) AccountIdsForName(name string) (ids []core.RawID, err error) {
 	c, err := d.Accounts.Find(d.Ctx, bson.D{StartsWith("name", name)})
 	if err != nil {
-		return
+		return nil, core.EI(err)
 	}
 	err = c.All(d.Ctx, &ids)
 	return
@@ -200,18 +258,12 @@ func (d *DB) LoginAccount(name, password string) (ac core.Account, err error) {
 //UpdateNoteList ...
 func (d *DB) UpdateNoteList(id core.ID, list []core.ID) error {
 	_, err := d.Accounts.UpdateOne(d.Ctx, ID(id), Set(bson.M{"Notes": list}))
-	return err
+	return core.EI(err)
 }
 
-// UpdateAccount replaces account with modified one
-func (d *DB) UpdateAccount(ac *core.Account) error {
-	_, err := d.Accounts.ReplaceOne(d.Ctx, ID(ac.ID), ac)
-	return err
-}
-
-// AddAccount inserts account to database, also generates id, if name is already taken,
+// Account inserts account to database, also generates id, if name is already taken,
 // account is not inserted and false is returned
-func (d *DB) AddAccount(ac *core.Account) error {
+func (d *DB) Account(ac *core.Account) error {
 	_, err := d.AccountByEmail(ac.Email)
 	if err == nil {
 		return ErrEmailTaken
@@ -222,76 +274,71 @@ func (d *DB) AddAccount(ac *core.Account) error {
 		return ErrNameTaken
 	}
 
-	ac.ID = d.NID(d.CounterA)
+	ac.ID, err = d.NID(d.CounterA)
+	if err != nil {
+		return nil
+	}
+
 	ac.Code = d.vCodeFactory.value()
 
 	_, err = d.Accounts.InsertOne(d.Ctx, ac)
 	if err != nil {
-		panic(err)
+		return core.EI(err)
 	}
 
 	return nil
 }
 
 // ChangeAccountCode is used when user enters incorrect code to prevent brute force attacks
-func (d *DB) ChangeAccountCode(id core.ID) string {
+func (d *DB) ChangeAccountCode(id core.ID) (string, error) {
 	code := d.vCodeFactory.value()
 	_, err := d.Accounts.UpdateOne(d.Ctx, ID(id), Set(bson.M{"code": code}))
-	if err != nil {
-		panic(err)
-	}
-
-	return code
+	return "", core.EI(err)
 }
 
 // MakeAccountVerified is used when user enters correct code to clarify that account is now verified
-func (d *DB) MakeAccountVerified(id core.ID) {
+func (d *DB) MakeAccountVerified(id core.ID) error {
 	_, err := d.Accounts.UpdateOne(d.Ctx, ID(id), Set(bson.M{"code": Verified}))
-	if err != nil {
-		panic(err)
-	}
+	return core.EI(err)
 }
 
-// DraftBySID abstracts id parsing step
-func (d *DB) DraftBySID(sid string) (dr core.Draft, err error) {
-	id, err := core.ParseID(sid)
+// TakeAction sets last action to current time
+func (d *DB) TakeAction(id core.ID) (func() error, error) {
+	ac, err := d.AccountByID(id)
 	if err != nil {
-		err = core.ErrImpossible.Wrap(err)
-		return
+		return nil, core.EI(err)
 	}
-	dr, err = d.DraftByID(id)
-	return
+
+	time := int64(core.ActionSpacing) - core.Time() - ac.LastAction
+
+	if time > 0 {
+		return nil, ErrLimmitRate.Args(core.FormatTime(time))
+	}
+
+	return func() error {
+		_, err = d.Accounts.UpdateOne(d.Ctx, ID(id), Set(bson.M{"lastAction": core.Time()}))
+		return core.EI(err)
+	}, nil
 }
 
 // DraftByID ...
 func (d *DB) DraftByID(id core.ID) (dr core.Draft, err error) {
 	err = d.Notes.FindOne(d.Ctx, ID(id)).Decode(&dr)
-	err = AssertNotFound(err)
-	return
-}
-
-// NoteBySID abstracts id parsing step
-func (d *DB) NoteBySID(sid string) (n core.Note, err error) {
-	id, err := core.ParseID(sid)
-	if err != nil {
-		err = core.ErrImpossible.Wrap(err)
-		return
-	}
-	n, err = d.NoteByID(id)
+	err = core.EI(err)
 	return
 }
 
 // NoteByID ...
 func (d *DB) NoteByID(id core.ID) (n core.Note, err error) {
 	err = d.Notes.FindOne(d.Ctx, ID(id)).Decode(&n)
-	err = AssertNotFound(err)
+	err = core.EI(err)
 	return
 }
 
 // SetPublished ...
 func (d *DB) SetPublished(id core.ID, value bool) error {
 	_, err := d.Notes.UpdateOne(d.Ctx, ID(id), Set(bson.M{"published": value}))
-	return err
+	return core.EI(err)
 }
 
 // IsAuthor returns ErrNotAuthor if given note has different author
@@ -304,29 +351,28 @@ func (d *DB) IsAuthor(owner, note core.ID) error {
 	return err
 }
 
-// AddNote inserts note to database, also generates id
-func (d *DB) AddNote(nt *core.Note) {
-	nt.ID = d.NID(d.CounterN)
-	nt.BornDate = time.Now().UnixNano() / int64(time.Microsecond)
-	_, err := d.Notes.InsertOne(d.Ctx, nt)
+// Note inserts note to database, also generates id
+func (d *DB) Note(nt *core.Note) (err error) {
+	nt.ID, err = d.NID(d.CounterN)
 	if err != nil {
-		panic(err)
+		return
 	}
+	nt.BornDate = core.Time()
+	_, err = d.Notes.InsertOne(d.Ctx, nt)
+	return core.EI(err)
 }
 
 // UpdateNote overwrites note with its modified version, target is determinate by id
-func (d *DB) UpdateNote(nt *core.Note) {
+func (d *DB) UpdateNote(nt *core.Note) error {
 	_, err := d.Notes.ReplaceOne(d.Ctx, ID(nt.ID), nt)
-	if err != nil {
-		panic(err)
-	}
+	return core.EI(err)
 }
 
 // SearchNote returns fitting search results for given parameters
-func (d *DB) SearchNote(values url.Values, published bool) []core.NotePreview {
+func (d *DB) SearchNote(values core.SearchRequest, published bool) ([]core.NotePreview, error) {
 	res, err := d.Notes.Find(d.Ctx, d.NoteFilter(values, published))
 	if err != nil {
-		panic(err)
+		return nil, core.EI(err)
 	}
 
 	notes := make([]core.NotePreview, 0, MaxCursorSize)
@@ -338,7 +384,25 @@ func (d *DB) SearchNote(values url.Values, published bool) []core.NotePreview {
 		}
 	}
 
-	return notes
+	return notes, nil
+}
+
+// CommentByID ...
+func (d *DB) CommentByID(id core.ID) (n core.Comment, err error) {
+	err = d.Comments.FindOne(d.Ctx, ID(id)).Decode(&n)
+	err = core.EI(err)
+	return
+}
+
+// Comment adds new comment to db
+func (d *DB) Comment(cm *core.Comment) (err error) {
+	cm.ID, err = d.NID(d.CounterC)
+	if err != nil {
+		return core.EI(err)
+	}
+	cm.BornDate = core.Time()
+	_, err = d.Comments.InsertOne(d.Ctx, cm)
+	return core.EI(err)
 }
 
 type vCodeFactory struct {
@@ -365,7 +429,7 @@ func (v *vCodeFactory) value() string {
 func AssertNotFound(err error) error {
 	if err != nil {
 		if err != mongo.ErrNoDocuments {
-			panic(err)
+			return core.EI(err)
 		}
 
 		return ErrNotFound

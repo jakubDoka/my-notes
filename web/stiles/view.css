@@ -1,0 +1,58 @@
+.inf {
+    margin: auto;
+    padding-left: 5px;
+    padding-right: 5px;
+}
+
+.info {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+.ratings {
+    display: flex;
+}
+
+.ratings textarea {
+    width: 100%;
+}
+
+.ratings button {
+    margin-left: 10px;
+    white-space: nowrap;
+}
+
+.ratings textarea {
+    resize: vertical;
+    min-height: 40px;
+}
+.ratings img {
+    margin: auto;
+    margin-left: 10px;
+}
+
+.ratings span {
+    margin: auto;
+    color: white;
+}
+
+.comments {
+    padding: 20px;
+}
+
+.comment {
+    outline: gray solid 1px;
+    outline-style: dashed;
+    padding: 10px;
+}
+
+.comment a {
+    color: wheat;
+    font-size: 20px;
+}
+
+.comment img {
+    margin-bottom: 0px;
+    margin-top: auto;
+}
+

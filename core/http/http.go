@@ -4,30 +4,32 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"gogen/str"
 	"io/ioutil"
 	"log"
 	"myNotes/core"
 	"myNotes/core/mongo"
 	"net/http"
-	"net/url"
-	"strconv"
 	"strings"
+
+	"github.com/jakubDoka/gogen/str"
+	"github.com/jakubDoka/sterr"
+	"github.com/jakubDoka/urlp"
 )
 
 const success = "success"
 
 // Error message constants for debuging
 var (
-	ErrAccount           = core.NErr("failed to create account")
-	ErrSendEmail         = core.NErr("failed to send verification email (please report)")
-	ErrInvalidLogin      = core.NErr("failed to login")
-	ErrIncorrectCode     = core.NErr("code you entered is incorrect, we sent you email with new code for next try")
-	ErrAlreadyVerified   = core.NErr("your account is already verified")
-	ErrIllegalNoteAccess = core.NErr("you are not an author of this notes so you cannot edit them")
-	ErrInvalidBoolean    = core.NErr("invalid boolean")
-	ErrInvalidUserCookie = core.NErr("user cookie is invalid")
-	ErrMissingUserCookie = core.NErr("missing user cookie")
+	ErrAccount           = sterr.New("failed to create account")
+	ErrSendEmail         = sterr.New("failed to send verification email (please report)")
+	ErrInvalidLogin      = sterr.New("failed to login")
+	ErrIncorrectCode     = sterr.New("code you entered is incorrect, we sent you email with new code for next try")
+	ErrAlreadyVerified   = sterr.New("your account is already verified")
+	ErrIllegalNoteAccess = sterr.New("you are not an author of this notes so you cannot edit them")
+	ErrInvalidBoolean    = sterr.New("invalid boolean")
+	ErrInvalidUserCookie = sterr.New("user cookie is invalid")
+	ErrMissingUserCookie = sterr.New("missing user cookie")
+	ErrNotPublished      = sterr.New("this note is not published yet")
 )
 
 // WS like a website, struct is main interface to frontend, it opens a server and handels requests
@@ -36,6 +38,7 @@ type WS struct {
 	fs            http.Handler
 	targetAddress string
 	bot           EmailSender
+	ps            urlp.Parser
 }
 
 // NWS creates new WS that can then be runned by ws.Run()
@@ -45,6 +48,7 @@ func NWS(domain, pageDir string, port int16, db *mongo.DB, bot EmailSender) (nws
 		fs:            http.FileServer(http.Dir(pageDir)),
 		targetAddress: fmt.Sprintf("%s:%d", domain, port),
 		bot:           bot,
+		ps:            urlp.New(urlp.LowerCase),
 	}
 }
 
@@ -56,27 +60,30 @@ func (w *WS) RegisterHandlers() {
 	http.HandleFunc("/verify", w.VerifyAccount)
 	http.HandleFunc("/login", w.Login)
 	http.HandleFunc("/account", w.Account)
+	http.HandleFunc("/publicaccount", w.PublicAccount)
 	http.HandleFunc("/config", w.Config)
 	http.HandleFunc("/configure", w.Configure)
 	// note
 	http.HandleFunc("/search", w.Search)
 	http.HandleFunc("/save", w.SaveNote)
-	http.HandleFunc("/note", w.Note)
+	http.HandleFunc("/publicnote", w.PublicNote)
+	http.HandleFunc("/privatenote", w.PrivateNote)
 	http.HandleFunc("/draft", w.Draft)
 	http.HandleFunc("/setpublished", w.SetPublished)
 }
 
 // RegisterAccount handels registering account and responds whether registration wos successful
 func (w *WS) RegisterAccount(wr http.ResponseWriter, r *http.Request) {
-	args, encoder := Setup(wr, r, SetupAssert{"n": 1, "p": 1, "e": 1})
-	if args == nil {
+	var req RegisterRequest
+	encoder, failed := w.Setup(wr, r, &req)
+	if failed {
 		return
 	}
 
 	account := core.Account{
-		Name:     args["n"][0],
-		Password: args["p"][0],
-		Email:    args["e"][0],
+		Name:     req.Name,
+		Password: req.Password,
+		Email:    req.Email,
 	}
 
 	err := func() (err error) {
@@ -85,7 +92,7 @@ func (w *WS) RegisterAccount(wr http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		err = w.db.AddAccount(&account)
+		err = w.db.Account(&account)
 		if err != nil {
 			return ErrAccount.Wrap(err)
 		}
@@ -103,19 +110,14 @@ func (w *WS) RegisterAccount(wr http.ResponseWriter, r *http.Request) {
 
 // VerifyAccount ...
 func (w *WS) VerifyAccount(wr http.ResponseWriter, r *http.Request) {
-	args, encoder := Setup(wr, r, SetupAssert{"n": 1, "p": 1, "c": 1})
-	if args == nil {
+	var req VerifyRequest
+	encoder, failed := w.Setup(wr, r, &req)
+	if failed {
 		return
 	}
 
-	var (
-		name     = args["n"][0]
-		password = args["p"][0]
-		code     = args["c"][0]
-	)
-
 	err := func() (err error) {
-		ac, err := w.db.LoginAccount(name, password)
+		ac, err := w.db.LoginAccount(req.Name, req.Password)
 		if err != nil && !errors.Is(err, mongo.ErrNotVerified) {
 			return ErrInvalidLogin.Wrap(err)
 		}
@@ -126,8 +128,12 @@ func (w *WS) VerifyAccount(wr http.ResponseWriter, r *http.Request) {
 			return ErrAlreadyVerified
 		}
 
-		if ac.Code != code {
-			ac.Code = w.db.ChangeAccountCode(ac.ID)
+		if ac.Code != req.Code {
+			ac.Code, err = w.db.ChangeAccountCode(ac.ID)
+			if err != nil {
+				return
+			}
+
 			err = w.SendVerifycationEmail(&ac)
 			if err != nil {
 				return
@@ -143,14 +149,34 @@ func (w *WS) VerifyAccount(wr http.ResponseWriter, r *http.Request) {
 	encoder.Encode(NResponce(err))
 }
 
+// PublicAccount retrieves account from db, but only by id and password is censored
+func (w *WS) PublicAccount(wr http.ResponseWriter, r *http.Request) {
+	var req IDRequest
+	encoder, failed := w.Setup(wr, r, &req)
+	if failed {
+		return
+	}
+
+	ac, err := w.db.AccountByID(req.ID)
+
+	ac.Censure()
+
+	encoder.Encode(AccountResponce{
+		Resp:    NResponce(err),
+		Account: ac,
+	})
+}
+
 // Account retrieves account from db
 func (w *WS) Account(wr http.ResponseWriter, r *http.Request) {
-	args, encoder := Setup(wr, r, SetupAssert{})
-	if args == nil {
+	var req Request
+	encoder, failed := w.Setup(wr, r, &req)
+	if failed {
 		return
 	}
 
 	ac, err := w.GetAccountFromCookie(wr, r)
+
 	encoder.Encode(AccountResponce{
 		Resp:    NResponce(err),
 		Account: ac,
@@ -159,53 +185,39 @@ func (w *WS) Account(wr http.ResponseWriter, r *http.Request) {
 
 // Search searches notes based of url params
 func (w *WS) Search(wr http.ResponseWriter, r *http.Request) {
-	args, encoder := Setup(wr, r, SetupAssert{
-		"name":    1,
-		"month":   1,
-		"school":  1,
-		"subject": 1,
-		"theme":   1,
-		"year":    1,
-		"author":  1,
-	})
-
-	if args == nil {
+	var req core.SearchRequest
+	encoder, failed := w.Setup(wr, r, &req)
+	if failed {
 		return
 	}
 
-	if args["author"][0] == "#me" {
+	if req.Author == "!!me" {
 		if ac, err := w.GetAccountFromCookie(wr, r); err == nil {
-			args["author"][0] = "#" + ac.Name
+			req.Author = mongo.ExactLabel + ac.Name
 		}
 	}
 
-	res := w.db.SearchNote(args, true)
-
-	status := success
+	res, err := w.db.SearchNote(req, true)
 
 	if len(res) == 0 {
-		status = "nothing found"
+		err = mongo.ErrNotFound
 	}
 
 	encoder.Encode(SearchResponce{
-		Resp:    Responce{status},
+		Resp:    NResponce(err),
 		Results: res,
 	})
 }
 
 // Login creates cookies to remember user
 func (w *WS) Login(wr http.ResponseWriter, r *http.Request) {
-	args, encoder := Setup(wr, r, SetupAssert{"n": 1, "p": 1})
-	if args == nil {
+	var req LoginReqest
+	encoder, failed := w.Setup(wr, r, &req)
+	if failed {
 		return
 	}
 
-	var (
-		name     = args["n"][0]
-		password = args["p"][0]
-	)
-
-	ac, err := w.db.LoginAccount(name, password)
+	ac, err := w.db.LoginAccount(req.Name, req.Password)
 	if err != nil {
 		err = ErrInvalidLogin.Wrap(err)
 	} else {
@@ -218,18 +230,16 @@ func (w *WS) Login(wr http.ResponseWriter, r *http.Request) {
 
 // Config returns user config to frontend based of cookie
 func (w *WS) Config(wr http.ResponseWriter, r *http.Request) {
-	args, encoder := Setup(wr, r, SetupAssert{})
-	if args == nil {
+	var req = OptIDRequest{ID: core.None}
+	encoder, failed := w.Setup(wr, r, &req)
+	if failed {
 		return
 	}
 
 	var ac core.Account
 	var err error
-	if val, ok := args["id"]; ok && len(val) != 0 {
-		id, err := core.ParseID(val[0])
-		if err != nil {
-			ac, err = w.db.AccountByID(id)
-		}
+	if req.ID != core.None {
+		ac, err = w.db.AccountByID(req.ID)
 	} else {
 		ac, err = w.GetAccountFromCookie(wr, r)
 	}
@@ -242,8 +252,9 @@ func (w *WS) Config(wr http.ResponseWriter, r *http.Request) {
 
 // Configure changes user configuration
 func (w *WS) Configure(wr http.ResponseWriter, r *http.Request) {
-	args, encoder := Setup(wr, r, SetupAssert{"n": 1, "c": 1})
-	if args == nil {
+	var req ConfigureRequest
+	encoder, failed := w.Setup(wr, r, &req)
+	if failed {
 		return
 	}
 
@@ -253,23 +264,26 @@ func (w *WS) Configure(wr http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		name := args["n"][0]
-
-		if name != ac.Name {
-			ac.Name = name
-			_, err = w.db.AccountByName(name)
+		if req.Name != ac.Name {
+			ac.Name = req.Name
+			_, err = w.db.AccountByName(req.Name)
 			if err == nil {
 				return mongo.ErrNameTaken
 			}
 			err = nil
 		}
 
-		ac.Cfg.Colors = strings.Split(args["c"][0], " ")
+		ac.Cfg.Colors = strings.Split(req.Colors, " ")
 		for i, c := range ac.Cfg.Colors {
 			ac.Cfg.Colors[i] = "#" + c
 		}
 
-		w.db.UpdateAccount(&ac)
+		err = w.db.Replace(w.db.Accounts, &ac)
+		if err != nil {
+			return
+		}
+
+		// name changes so cookie has to be restored
 		cookie := ac.Cookie()
 		http.SetCookie(wr, &cookie)
 
@@ -279,24 +293,119 @@ func (w *WS) Configure(wr http.ResponseWriter, r *http.Request) {
 	encoder.Encode(NResponce(err))
 }
 
+// Like changes like state of something
+func (w *WS) Like(wr http.ResponseWriter, r *http.Request) {
+	var req LikeRequest
+	encoder, failed := w.Setup(wr, r, &req)
+	if failed {
+		return
+	}
+
+	var state bool
+	var amount int
+	err := func() (err error) {
+		ac, err := w.GetAccountFromCookie(wr, r)
+		if err != nil {
+			return
+		}
+
+		tp, err := core.ParseTargetType(req.Target)
+		if err != nil {
+			return
+		}
+
+		state, amount, err = w.db.Like(req.ID, ac.ID, w.db.Coll(tp), req.Change)
+		return
+	}()
+
+	encoder.Encode(LikeResponce{
+		Resp:  NResponce(err),
+		State: state,
+		Count: amount,
+	})
+}
+
+// Comment adds comment to note or reply to commant
+func (w *WS) Comment(wr http.ResponseWriter, r *http.Request) {
+	var req CommentRequest
+	encoder, failed := w.Setup(wr, r, &req)
+	if failed {
+		return
+	}
+
+	err := func() (err error) {
+		ac, err := w.GetAccountFromCookie(wr, r)
+		if err != nil {
+			return
+		}
+
+		act, err := w.db.TakeAction(ac.ID)
+		if err != nil {
+			return
+		}
+
+		bytes, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			return core.EI(err)
+		}
+
+		cm := core.Comment{
+			Author:  ac.ID,
+			Note:    core.None,
+			Content: string(bytes),
+			Likes:   core.IDS{ac.ID},
+		}
+
+		tp, err := core.ParseTargetType(req.Target)
+		if err != nil {
+			return
+		}
+
+		cm.Target.Type = tp
+		switch tp {
+		case core.CommentT:
+			nt, err := w.db.NoteByID(req.ID)
+			if err != nil {
+				return err
+			}
+			cm.Target.ID = nt.ID
+		case core.NoteT:
+			ocm, err := w.db.CommentByID(req.ID)
+			if err != nil {
+				return err
+			}
+			cm.Target.ID = ocm.ID
+		}
+
+		err = w.db.Comment(&cm)
+		if err != nil {
+			return
+		}
+
+		return act()
+	}()
+
+	encoder.Encode(NResponce(err))
+}
+
 // SaveNote creates new note if id == "new" it creates new note otherwise, it just updates data
 func (w *WS) SaveNote(wr http.ResponseWriter, r *http.Request) {
-	args, encoder := Setup(wr, r, SetupAssert{
-		"name":    1,
-		"month":   1,
-		"school":  1,
-		"subject": 1,
-		"theme":   1,
-		"year":    1,
-		"id":      1,
-	})
-	if args == nil {
+	var req = SaveRequest{ID: core.None}
+	encoder, failed := w.Setup(wr, r, &req)
+	if failed {
 		return
 	}
 
 	var (
 		ac   core.Account
-		note core.Note
+		note = core.Note{
+			Year:    req.Year,
+			Month:   req.Month,
+			Name:    req.Name,
+			School:  mongo.School(req.School),
+			Subject: req.Subject,
+			Theme:   req.Theme,
+		}
 	)
 
 	err := func() (err error) {
@@ -305,43 +414,30 @@ func (w *WS) SaveNote(wr http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		sid := args["id"][0]
-		if sid == "new" {
+		var act = func() error { return nil }
+		if req.ID == core.None {
+			act, err = w.db.TakeAction(ac.ID)
+			if err != nil {
+				return
+			}
+
 			note.Author = ac.ID
-			w.db.AddNote(&note)
-			ac.Notes = append(ac.Notes, note.ID)
 		} else {
-			note, err = w.db.NoteBySID(sid)
+			note, err = w.db.NoteByID(req.ID)
 			if err != nil {
 				return err
 			}
 		}
 
-		note.Year, err = strconv.Atoi(args["year"][0])
-		if err != nil {
-			return core.ErrImpossible.Wrap(err)
-		}
-
-		note.Month, err = strconv.Atoi(args["month"][0])
-		if err != nil {
-			return core.ErrImpossible.Wrap(err)
-		}
-
 		bytes, err := ioutil.ReadAll(r.Body)
 		if err != nil {
-			return
+			return core.EI(err)
 		}
+
 		note.Content = string(bytes)
 
-		note.Name = args["name"][0]
-		note.Theme = args["theme"][0]
-		note.Subject = args["subject"][0]
-		note.School = mongo.School(args["school"][0])
-
 		w.db.UpdateNote(&note)
-		w.db.UpdateNoteList(ac.ID, ac.Notes)
-
-		return
+		return act()
 	}()
 
 	encoder.Encode(SaveResponce{
@@ -352,8 +448,9 @@ func (w *WS) SaveNote(wr http.ResponseWriter, r *http.Request) {
 
 // SetPublished alters publicity of note
 func (w *WS) SetPublished(wr http.ResponseWriter, r *http.Request) {
-	args, encoder := Setup(wr, r, SetupAssert{"id": 1, "b": 1})
-	if args == nil {
+	var req PublishRequest
+	encoder, failed := w.Setup(wr, r, &req)
+	if failed {
 		return
 	}
 
@@ -363,22 +460,12 @@ func (w *WS) SetPublished(wr http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		id, err := core.ParseID(args["id"][0])
-		if err != nil {
-			return core.ErrImpossible.Wrap(err)
-		}
-
-		err = w.db.IsAuthor(ac.ID, id)
+		err = w.db.IsAuthor(ac.ID, req.ID)
 		if err != nil {
 			return
 		}
 
-		val, err := ParseBool(args["b"][0])
-		if err != nil {
-			return core.ErrImpossible.Wrap(err)
-		}
-
-		err = w.db.SetPublished(id, val)
+		err = w.db.SetPublished(req.ID, req.Publish)
 		if err != nil {
 			panic(err)
 		}
@@ -389,28 +476,44 @@ func (w *WS) SetPublished(wr http.ResponseWriter, r *http.Request) {
 	encoder.Encode(NResponce(err))
 }
 
+// PrivateNote retrieves any note but only if user is an owner of a note
+func (w *WS) PrivateNote(wr http.ResponseWriter, r *http.Request) {
+	w.Note(wr, r, true)
+}
+
+// PublicNote returns any public note but not private
+func (w *WS) PublicNote(wr http.ResponseWriter, r *http.Request) {
+	w.Note(wr, r, false)
+}
+
 // Note retrieves note by id
-func (w *WS) Note(wr http.ResponseWriter, r *http.Request) {
-	args, encoder := Setup(wr, r, SetupAssert{"id": 1})
-	if args == nil {
+func (w *WS) Note(wr http.ResponseWriter, r *http.Request, private bool) {
+	var req IDRequest
+	encoder, failed := w.Setup(wr, r, &req)
+	if failed {
 		return
 	}
 
 	var nt core.Note
 
 	err := func() (err error) {
-		ac, err := w.GetAccountFromCookie(wr, r)
+
+		nt, err = w.db.NoteByID(req.ID)
 		if err != nil {
 			return
 		}
 
-		nt, err = w.db.NoteBySID(args["id"][0])
-		if err != nil {
-			return
-		}
+		if private {
+			ac, err := w.GetAccountFromCookie(wr, r)
+			if err != nil {
+				return err
+			}
 
-		if ac.ID != nt.Author {
-			return ErrIllegalNoteAccess
+			if ac.ID != nt.Author {
+				return ErrIllegalNoteAccess
+			}
+		} else if !nt.Published {
+			return ErrNotPublished
 		}
 
 		return
@@ -424,12 +527,13 @@ func (w *WS) Note(wr http.ResponseWriter, r *http.Request) {
 
 // Draft retrieves draft data
 func (w *WS) Draft(wr http.ResponseWriter, r *http.Request) {
-	args, encoder := Setup(wr, r, SetupAssert{"id": 1})
-	if args == nil {
+	var req IDRequest
+	encoder, failed := w.Setup(wr, r, &req)
+	if failed {
 		return
 	}
 
-	d, err := w.db.DraftBySID(args["id"][0])
+	d, err := w.db.DraftByID(req.ID)
 
 	encoder.Encode(DraftResponce{
 		Resp:  NResponce(err),
@@ -475,83 +579,19 @@ func (w *WS) GetAccountFromCookie(wr http.ResponseWriter, r *http.Request) (ac c
 	return
 }
 
-// SearchResponce ...
-type SearchResponce struct {
-	Resp    Responce
-	Results []core.NotePreview
-}
-
-// AccountResponce ...
-type AccountResponce struct {
-	Resp    Responce
-	Account core.Account
-}
-
-// ConfigResponce ...
-type ConfigResponce struct {
-	Resp Responce
-	Cfg  core.Config
-}
-
-// DraftResponce ...
-type DraftResponce struct {
-	Resp  Responce
-	Draft core.Draft
-}
-
-// SaveResponce ...
-type SaveResponce struct {
-	Resp Responce
-	ID   core.ID
-}
-
-// NoteResponce ...
-type NoteResponce struct {
-	Resp Responce
-	Note core.Note
-}
-
-// Responce is responce sent by RegisterAccount callback
-type Responce struct {
-	Status string
-}
-
-// NResponce creates new responce from error, if error is nil it substitutes success message
-func NResponce(err error) Responce {
-	status := success
-	if err != nil {
-		status = err.Error()
-	}
-	return Responce{status}
-}
-
-// SetupAssert stores parameters that input has to fit, determinate witch kes has to be present
-// and how match elements they have to contain
-type SetupAssert map[string]int
-
 // Setup handles invalid request, it sends error responce to sender and returns nil if all
 // asserted arguments weren't inputted
-func Setup(w http.ResponseWriter, r *http.Request, assert SetupAssert) (url.Values, *json.Encoder) {
-	val := r.URL.Query()
-	var incorrect string
-	for a, l := range assert {
-		if val, ok := val[a]; ok {
-			if len(val) != l {
-				incorrect += fmt.Sprintf(" invalid amount of args: expected:%d got:%d", l, len(val))
-			}
-		} else {
-			incorrect += " missing:" + a
-		}
+func (w *WS) Setup(wr http.ResponseWriter, r *http.Request, request interface{}) (*json.Encoder, bool) {
+	err := urlp.Parse(r.URL.Query(), request)
+
+	if err != nil {
+		wr.WriteHeader(http.StatusBadRequest)
+		wr.Write([]byte(err.Error()))
+		return nil, true
 	}
 
-	if len(incorrect) != 0 {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("invalid Url params:" + incorrect))
-		return nil, nil
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	return val, json.NewEncoder(w)
+	wr.Header().Set("Content-Type", "application/json")
+	return json.NewEncoder(wr), false
 }
 
 // GetUserDataFromCookie ...
@@ -570,16 +610,4 @@ func GetUserDataFromCookie(w http.ResponseWriter, r *http.Request) (name, passwo
 func InternalErr(w http.ResponseWriter, err string) {
 	w.WriteHeader(http.StatusInternalServerError)
 	w.Write([]byte(err))
-}
-
-// ParseBool ...
-func ParseBool(raw string) (bool, error) {
-	switch raw {
-	case "true":
-		return true, nil
-	case "false":
-		return false, nil
-	default:
-		return false, ErrInvalidBoolean
-	}
 }
