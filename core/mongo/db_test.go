@@ -12,9 +12,23 @@ func TestNID(t *testing.T) {
 	db := Setup()
 
 	for i := core.ID(0); i < 4; i++ {
-		id, err := db.NID(db.CounterN)
+		id, err := db.NID()
 		if id != i || err != nil {
 			t.Errorf("%d != %d, %v", id, i, err)
+		}
+	}
+
+	for i := core.ID(0); i < 4; i++ {
+		err := db.DID(i)
+		if err != nil {
+			t.Error(err)
+		}
+	}
+
+	for i := core.ID(4); i > 0; i-- {
+		id, err := db.NID()
+		if id != i-1 || err != nil {
+			t.Errorf("%d != %d, %v", id, i-1, err)
 		}
 	}
 }

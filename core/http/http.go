@@ -68,8 +68,10 @@ func (w *WS) RegisterHandlers() {
 	http.HandleFunc("/save", w.SaveNote)
 	http.HandleFunc("/publicnote", w.PublicNote)
 	http.HandleFunc("/privatenote", w.PrivateNote)
-	http.HandleFunc("/draft", w.Draft)
+	http.HandleFunc("/usernotes", w.UserNotes)
 	http.HandleFunc("/setpublished", w.SetPublished)
+	// general
+	http.HandleFunc("/like", w.Like)
 }
 
 // RegisterAccount handels registering account and responds whether registration wos successful
@@ -80,26 +82,33 @@ func (w *WS) RegisterAccount(wr http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	account := core.Account{
+	ac := core.Account{
 		Name:     req.Name,
 		Password: req.Password,
 		Email:    req.Email,
 	}
 
 	err := func() (err error) {
-		err = ValidEmail(account.Email)
+		err = ValidEmail(ac.Email)
 		if err != nil {
 			return
 		}
 
-		err = w.db.Account(&account)
+		err = w.db.CanCreateAccount(&ac)
 		if err != nil {
 			return ErrAccount.Wrap(err)
 		}
 
-		err = w.SendVerifycationEmail(&account)
+		ac.Code = w.db.Code()
+
+		err = w.SendVerifycationEmail(&ac)
 		if err != nil {
 			return
+		}
+
+		err = w.db.Account(&ac)
+		if err != nil {
+			return core.EI(err)
 		}
 
 		return
@@ -353,7 +362,6 @@ func (w *WS) Comment(wr http.ResponseWriter, r *http.Request) {
 			Author:  ac.ID,
 			Note:    core.None,
 			Content: string(bytes),
-			Likes:   core.IDS{ac.ID},
 		}
 
 		tp, err := core.ParseTargetType(req.Target)
@@ -436,7 +444,16 @@ func (w *WS) SaveNote(wr http.ResponseWriter, r *http.Request) {
 
 		note.Content = string(bytes)
 
-		w.db.UpdateNote(&note)
+		if req.ID == core.None {
+			err = w.db.Note(&note)
+		} else {
+			err = w.db.UpdateNote(&note)
+		}
+
+		if err != nil {
+			return
+		}
+
 		return act()
 	}()
 
@@ -525,31 +542,27 @@ func (w *WS) Note(wr http.ResponseWriter, r *http.Request, private bool) {
 	})
 }
 
-// Draft retrieves draft data
-func (w *WS) Draft(wr http.ResponseWriter, r *http.Request) {
+// UserNotes retrieves all notes user has as drafts
+func (w *WS) UserNotes(wr http.ResponseWriter, r *http.Request) {
 	var req IDRequest
 	encoder, failed := w.Setup(wr, r, &req)
 	if failed {
 		return
 	}
 
-	d, err := w.db.DraftByID(req.ID)
+	var nts []core.Draft
+	err := w.db.UserNotes(req.ID, &nts)
 
 	encoder.Encode(DraftResponce{
-		Resp:  NResponce(err),
-		Draft: d,
+		Resp:   NResponce(err),
+		Drafts: nts,
 	})
 }
 
-// SendVerifycationEmail ...
+// SendVerifycationEmail creates the message and sends it to targeted account
 func (w *WS) SendVerifycationEmail(account *core.Account) error {
 	message := FormatVerificationEmail(account.Code, account.Name)
-	err := w.bot.Send(message, account.Email)
-	if err != nil {
-		return ErrSendEmail.Wrap(err)
-	}
-
-	return nil
+	return w.bot.Send(message, account.Email)
 }
 
 // Run launches the WS, server will be running until this method exits ends
@@ -582,11 +595,10 @@ func (w *WS) GetAccountFromCookie(wr http.ResponseWriter, r *http.Request) (ac c
 // Setup handles invalid request, it sends error responce to sender and returns nil if all
 // asserted arguments weren't inputted
 func (w *WS) Setup(wr http.ResponseWriter, r *http.Request, request interface{}) (*json.Encoder, bool) {
-	err := urlp.Parse(r.URL.Query(), request)
+	err := w.ps.Parse(r.URL.Query(), request)
 
 	if err != nil {
-		wr.WriteHeader(http.StatusBadRequest)
-		wr.Write([]byte(err.Error()))
+		http.Error(wr, err.Error(), http.StatusBadRequest)
 		return nil, true
 	}
 

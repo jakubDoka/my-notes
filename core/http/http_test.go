@@ -22,36 +22,36 @@ func TestWSRegisterAccount(t *testing.T) {
 		{
 			desc: "successfull",
 			args: url.Values{
-				"n": {"name"},
-				"p": {"password"},
-				"e": {"jakub.doka2@gmail.com"},
+				"name":     {"name"},
+				"password": {"password"},
+				"email":    {"jakub.doka2@gmail.com"},
 			},
 			result: Responce{success},
 		},
 		{
 			desc: "invalid email",
 			args: url.Values{
-				"n": {"name"},
-				"p": {"password"},
-				"e": {"emailthatdoesnotexist24567@gmail.com"},
+				"name":     {"name"},
+				"password": {"password"},
+				"email":    {"emailthatdoesnotexist24567@gmail.com"},
 			},
 			result: Responce{ErrInvalidEmail.Error()},
 		},
 		{
 			desc: "name taken",
 			args: url.Values{
-				"n": {"name"},
-				"p": {"password"},
-				"e": {"mlokogrgel@gmail.com"},
+				"name":     {"name"},
+				"password": {"password"},
+				"email":    {"mlokogrgel@gmail.com"},
 			},
 			result: Responce{ErrAccount.Wrap(mongo.ErrNameTaken).Error()},
 		},
 		{
 			desc: "email taken",
 			args: url.Values{
-				"n": {"name"},
-				"p": {"password"},
-				"e": {"jakub.doka2@gmail.com"},
+				"name":     {"name"},
+				"password": {"password"},
+				"email":    {"jakub.doka2@gmail.com"},
 			},
 			result: Responce{ErrAccount.Wrap(mongo.ErrEmailTaken).Error()},
 		},
@@ -87,36 +87,36 @@ func TestVerify(t *testing.T) {
 		{
 			desc: "login fail",
 			args: url.Values{
-				"n": {"name"},
-				"p": {""},
-				"c": {ac.Code},
+				"name":     {"name"},
+				"password": {""},
+				"code":     {ac.Code},
 			},
 			result: Responce{ErrInvalidLogin.Wrap(mongo.ErrInvalidLogin).Error()},
 		},
 		{
 			desc: "successfull",
 			args: url.Values{
-				"n": {"name"},
-				"p": {"password"},
-				"c": {ac.Code},
+				"name":     {"name"},
+				"password": {"password"},
+				"code":     {ac.Code},
 			},
 			result: Responce{success},
 		},
 		{
 			desc: "already",
 			args: url.Values{
-				"n": {"name"},
-				"p": {"password"},
-				"c": {ac.Code},
+				"name":     {"name"},
+				"password": {"password"},
+				"code":     {ac.Code},
 			},
 			result: Responce{ErrAlreadyVerified.Error()},
 		},
 		{
 			desc: "incorrect code",
 			args: url.Values{
-				"n": {"name1"},
-				"p": {"password"},
-				"c": {""},
+				"name":     {"name1"},
+				"password": {"password"},
+				"code":     {""},
 			},
 			result: Responce{ErrIncorrectCode.Error()},
 		},
@@ -145,32 +145,32 @@ func TestLogin(t *testing.T) {
 		{
 			desc: "incorrect name",
 			args: url.Values{
-				"n": {""},
-				"p": {"password"},
+				"name":     {""},
+				"password": {"password"},
 			},
 			result: Responce{ErrInvalidLogin.Wrap(mongo.ErrInvalidLogin).Error()},
 		},
 		{
 			desc: "incorrect password",
 			args: url.Values{
-				"n": {"name"},
-				"p": {""},
+				"name":     {"name"},
+				"password": {""},
 			},
 			result: Responce{ErrInvalidLogin.Wrap(mongo.ErrInvalidLogin).Error()},
 		},
 		{
 			desc: "not verified",
 			args: url.Values{
-				"n": {"name"},
-				"p": {"password"},
+				"name":     {"name"},
+				"password": {"password"},
 			},
 			result: Responce{ErrInvalidLogin.Wrap(mongo.ErrNotVerified).Error()},
 		},
 		{
 			desc: "successful",
 			args: url.Values{
-				"n": {"name1"},
-				"p": {"password"},
+				"name":     {"name1"},
+				"password": {"password"},
 			},
 			result: Responce{success},
 		},
@@ -263,8 +263,8 @@ func TestConfigure(t *testing.T) {
 		{
 			desc: "invalid name",
 			args: url.Values{
-				"n": {"name2"},
-				"c": {""},
+				"name":   {"name2"},
+				"colors": {""},
 			},
 			result: Responce{mongo.ErrNameTaken.Error()},
 			cookie: ac.Cookie(),
@@ -273,8 +273,8 @@ func TestConfigure(t *testing.T) {
 		{
 			desc: "success",
 			args: url.Values{
-				"n": {"name3"},
-				"c": {""},
+				"name":   {"name3"},
+				"colors": {""},
 			},
 			result: Responce{success},
 			cookie: ac.Cookie(),
@@ -345,7 +345,7 @@ func SetupTest() (*mongo.DB, *WS) {
 		panic(err)
 	}
 
-	bot := NEmailSender("mlokogrgel@gmail.com", "mlokMLOK1234", 587)
+	bot := NEmailSender(BotAccount.Email, BotAccount.Password, 587)
 
 	ws := NWS("127.0.0.1", "./web", 3000, db, *bot)
 

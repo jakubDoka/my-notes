@@ -4,43 +4,45 @@ const results = elem("results")
 
 const error = elem("error")
 
-const query = searchSetup()
+var query = undefined
 
-refresh.onclick = function(ev) {
+loadAccount()
+
+refresh.onclick = async function(ev) {
     ev.preventDefault()
-    search(query).then(j => {
-        const err = getErr(j)
-        if(err) {
-            error.innerHTML = err
-            return
-        }
+    results.innerHTML = ""
 
-        for(var idx in j.Results) {
-            const i = idx
-            const res = j.Results[i]
-            const elapsed = new Date().getTime() - res.BornDate
-            results.innerHTML += `
-            <div class="stats">
-                <a href="view.html?id=${res.ID}" class="title">${res.Name}</a>
-                <img src="assets/like.png">
-                <span class="title">${res.Likes}</span>
-                <span class="date">created ${new Time(elapsed).toString()} ago</span> 
-            </div>
-            <div class="text-box preview" id="preview${i}"></div>
-            `
-            
-            request("config", {id: res.Author}).then(j => {
-                const err = getErr(j)
-                const preview = elem(`preview${i}`)
-                if (err) {
-                    preview.innerHTML = err
-                } else {
-                    const m = new Markdown(j.Cfg.Colors)
-                    preview.innerHTML = m.convert(res.Content+"...")
-                }
-            })
-        }
-    })
+    const j = await search(query)
+    const err = getErr(j)
+    if(err) {
+        error.innerHTML = err
+        return
+    }
+
+    const t = await loadText("components/preview.html")
+    for(var idx in j.Results) {
+        const i = idx
+        const res = j.Results[i]
+        const elapsed = new Date().getTime() - res.BornDate
+
+        const cfg = await request("config", {id: res.Author})
+
+        results.innerHTML += format(t, {
+            id: res.ID,
+            name: res.Name,
+            idx: i,
+            time: new Time(elapsed).toString(),
+            idx: i,
+            content: getErr(cfg) || new Markdown(cfg.Cfg.Colors).convert(res.Content+"..."),
+        })
+        
+        const likeData = await request("like", {id: res.ID, target:"note", change: false})
+
+        registerLikeButton(elem("like"+i), elem("counter"+i), likeData, "note", res.ID)
+    }       
 }
 
-refresh.click()
+embed("components/school.html", "schools").then(() => {
+    query = searchSetup()
+    refresh.click()
+})

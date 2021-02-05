@@ -206,6 +206,9 @@ func (v IDS) Find(find func(e ID) bool) (idx int, res ID) {
 // it returns closest index and false
 func (v IDS) BiSearch(value ID, cmp func(a, b ID) uint8) (int, bool) {
 	start, end := 0, len(v)
+	if start == end {
+		return -1, false
+	}
 	for {
 		mid := start + (end-start)/2
 		switch cmp(v[mid], value) {

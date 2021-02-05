@@ -1,0 +1,21 @@
+<2><t>Shortcuts<t><2>
+
+<b>Alt<b>+<b>t<b> - creates <t>Title<t> text
+<b>Alt<b>+<b>b<b> - creates <b>bold<b> text
+<b>Alt<b>+<b>i<b> - creates <i>italic<i> text
+<b>Alt<b>+<b>u<b> - creates <u>underlined<u> text
+    
+<b>Alt<b>+<b>(1-9)<b> - creates <3>colored<3> <2>text<2>, colors can be configured
+    
+<b>Alt<b>+<b>e<b> - erases stile tags within selection but leaves the text
+
+<b>Alt<b>+<b>p<b> - switches to preview
+<b>Alt<b>+<b>r<b> - switches to raw
+
+<b>Alt<b>+<b>z<b> - undo
+<b>Alt<b>+<b>y<b> - redo
+<b>Alt<b>+<b>s<b> - save
+    
+its a <b><1>left<1><b> <b>Alt<b>
+
+you can also <1><b><u><t>combine<t><u><b><1> stiles, though using title in sentence is equivalent of screaming

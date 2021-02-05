@@ -1,6 +1,7 @@
 package mongo
 
 import (
+	"fmt"
 	"myNotes/core"
 	"strconv"
 	"strings"
@@ -39,9 +40,14 @@ func Insert(field string, idx int, value ...interface{}) bson.M {
 	return bson.M{"$push": bson.M{field: bson.M{"$each": value, "$position": idx}}}
 }
 
-// Pop pops slice of elements
+// Pop pops slice of elements, though null remains
 func Pop(field string, idx, length int) bson.M {
 	return bson.M{"$unset": bson.M{field + "." + strconv.Itoa(idx): length}}
+}
+
+// Pull pulls value out of list
+func Pull(field string, value interface{}) bson.M {
+	return bson.M{"$pull": bson.M{field: value}}
 }
 
 // NoteFilter creates filter for searching notes, passed url values have to contain keys with non empty
@@ -83,17 +89,17 @@ func (d *DB) NoteFilter(values core.SearchRequest, published bool) bson.D {
 		}
 	}
 
-	for field, val := range map[string]int{"year": values.Year, "month": values.Month} {
+	for field, val := range map[string]int{"year": values.Year, "month": values.Month, "school": School(values.School)} {
 		if val != 0 {
 			filter = append(filter, E(field, val))
 		}
 	}
 
-	filter = append(filter, E("school", School(values.School)))
-
 	if published {
 		filter = append(filter, E("published", true))
 	}
+
+	fmt.Println(values.School)
 
 	return filter
 }

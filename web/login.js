@@ -28,7 +28,7 @@ singIn.onclick = function(ev) {
         return
     }
 
-    if(confirm != password) {
+    if(confirm.value != password.value) {
         err.innerHTML = "confirm password does not match"
         return
     }

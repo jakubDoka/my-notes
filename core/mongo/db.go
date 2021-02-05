@@ -2,6 +2,7 @@ package mongo
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"myNotes/core"
 	"strconv"
@@ -64,10 +65,10 @@ var (
 	ErrEmailTaken   = sterr.New("account with ths email already exist")
 	ErrNameTaken    = sterr.New("name is already taken")
 	ErrNotVerified  = sterr.New("account is not verified")
-	ErrNotFound     = sterr.New("not found")
 	ErrInvalidLogin = sterr.New("password or name is incorrect")
 	ErrNotAuthor    = sterr.New("you cannot edit note you are not author of")
 	ErrLimmitRate   = sterr.New("you have to wait %s to take another action")
+	ErrNotFound     = sterr.New("%s by %s not found")
 )
 
 // DB is main database interface
@@ -80,7 +81,7 @@ type DB struct {
 
 	Cancel context.CancelFunc
 
-	Accounts, Notes, Comments, CounterA, CounterN, CounterC *mongo.Collection
+	Accounts, Notes, Comments, Counter *mongo.Collection
 
 	vCodeFactory
 }
@@ -116,8 +117,7 @@ func NDB(clientAddress, name string) (rdb *DB, err error) {
 		panic(err)
 	}
 
-	db.CounterA = db.Collection(CounterA)
-	db.CounterN = db.Collection(CounterN)
+	db.Counter = db.Collection("Counter")
 
 	rdb = &db
 
@@ -128,25 +128,41 @@ func NDB(clientAddress, name string) (rdb *DB, err error) {
 type IDCounter struct {
 	ID    core.ID `bson:"_id"`
 	Value core.ID
+	Free  []core.ID
 }
 
-// NID creates new unique incremental id
-func (d *DB) NID(counter *mongo.Collection) (core.ID, error) {
+// NID creates new unique incremental id or reuses old one
+func (d *DB) NID() (core.ID, error) {
 	var c IDCounter
-	err := counter.FindOne(d.Ctx, All).Decode(&c)
+	err := d.Counter.FindOne(d.Ctx, All).Decode(&c)
 	if err == mongo.ErrNoDocuments {
-		counter.InsertOne(d.Ctx, IDCounter{})
+		d.Counter.InsertOne(d.Ctx, IDCounter{Value: 1, Free: []core.ID{1}})
 		return 0, nil
 	} else if err != nil {
 		return 0, core.EI(err)
 	}
 
-	_, err = counter.UpdateOne(d.Ctx, All, Inc(bson.M{"value": 1}))
+	nid := c.Value + 1
+	fmt.Println(c.Free)
+	if len(c.Free) != 0 {
+		nid = c.Free[0]
+		c.Free = c.Free[1:]
+	} else {
+		c.Value++
+	}
+
+	_, err = d.Counter.ReplaceOne(d.Ctx, All, c)
 	if err != nil {
 		return 0, core.EI(err)
 	}
 
-	return c.Value + 1, nil
+	return nid, nil
+}
+
+// DID moves id to list of freed ids for reuse
+func (d *DB) DID(id core.ID) error {
+	_, err := d.Counter.UpdateOne(d.Ctx, All, Insert("free", 0, id))
+	return core.EI(err)
 }
 
 // Coll returns collections based of target type
@@ -167,16 +183,6 @@ func (d *DB) Replace(collection *mongo.Collection, doc core.IDer) error {
 	return core.EI(err)
 }
 
-// CheckLike returns whether document is liked by user
-func (d *DB) CheckLike(id, user core.ID, collection *mongo.Collection) (liked bool, amount int, err error) {
-	return d.Like(id, user, collection, false)
-}
-
-// ChangeLike likes or dislikes the document based of its current state
-func (d *DB) ChangeLike(id, user core.ID, collection *mongo.Collection) (liked bool, amount int, err error) {
-	return d.Like(id, user, collection, true)
-}
-
 // Like can change or return whether user has liked the document and optionally return id
 func (d *DB) Like(id, user core.ID, collection *mongo.Collection, change bool) (liked bool, amount int, err error) {
 	var likes core.Likes
@@ -190,11 +196,11 @@ func (d *DB) Like(id, user core.ID, collection *mongo.Collection, change bool) (
 	i, liked := likes.Likes.BiSearch(user, core.BiSearch)
 	if change {
 		if liked {
+			_, err = collection.UpdateOne(d.Ctx, ID(id), Pull("likes", user))
+			amount--
+		} else {
 			_, err = collection.UpdateOne(d.Ctx, ID(id), Insert("likes", i, user))
 			amount++
-		} else {
-			_, err = collection.UpdateOne(d.Ctx, ID(id), Pop("likes", i, 1))
-			amount--
 		}
 
 		liked = !liked
@@ -219,14 +225,14 @@ func (d *DB) AccountByID(id core.ID) (ac core.Account, err error) {
 // AccountByEmail finds account based of a email, email of every account has to be unique
 func (d *DB) AccountByEmail(email string) (ac core.Account, err error) {
 	err = d.Accounts.FindOne(d.Ctx, bson.M{"email": email}).Decode(&ac)
-	err = AssertNotFound(err)
+	err = AssertNotFound(err, "account", "email")
 	return
 }
 
 // AccountByName finds account based of a name, name of every account has to be unique
 func (d *DB) AccountByName(name string) (ac core.Account, err error) {
 	err = d.Accounts.FindOne(d.Ctx, bson.M{"name": name}).Decode(&ac)
-	err = AssertNotFound(err)
+	err = AssertNotFound(err, "account", "name")
 	return
 }
 
@@ -243,7 +249,6 @@ func (d *DB) AccountIdsForName(name string) (ids []core.RawID, err error) {
 // LoginAccount returns account with given password and name
 func (d *DB) LoginAccount(name, password string) (ac core.Account, err error) {
 	err = d.Accounts.FindOne(d.Ctx, bson.M{"name": name, "password": password}).Decode(&ac)
-	err = AssertNotFound(err)
 	if err != nil {
 		err = ErrInvalidLogin
 		return
@@ -261,9 +266,8 @@ func (d *DB) UpdateNoteList(id core.ID, list []core.ID) error {
 	return core.EI(err)
 }
 
-// Account inserts account to database, also generates id, if name is already taken,
-// account is not inserted and false is returned
-func (d *DB) Account(ac *core.Account) error {
+// CanCreateAccount returns whether account can be created
+func (d *DB) CanCreateAccount(ac *core.Account) error {
 	_, err := d.AccountByEmail(ac.Email)
 	if err == nil {
 		return ErrEmailTaken
@@ -274,12 +278,22 @@ func (d *DB) Account(ac *core.Account) error {
 		return ErrNameTaken
 	}
 
-	ac.ID, err = d.NID(d.CounterA)
+	return nil
+}
+
+// Code generates verification code
+func (d *DB) Code() string {
+	return d.vCodeFactory.value()
+}
+
+// Account inserts account to database, also generates id, if name is already taken,
+// account is not inserted and false is returned
+func (d *DB) Account(ac *core.Account) (err error) {
+
+	ac.ID, err = d.NID()
 	if err != nil {
 		return nil
 	}
-
-	ac.Code = d.vCodeFactory.value()
 
 	_, err = d.Accounts.InsertOne(d.Ctx, ac)
 	if err != nil {
@@ -293,7 +307,7 @@ func (d *DB) Account(ac *core.Account) error {
 func (d *DB) ChangeAccountCode(id core.ID) (string, error) {
 	code := d.vCodeFactory.value()
 	_, err := d.Accounts.UpdateOne(d.Ctx, ID(id), Set(bson.M{"code": code}))
-	return "", core.EI(err)
+	return code, core.EI(err)
 }
 
 // MakeAccountVerified is used when user enters correct code to clarify that account is now verified
@@ -328,6 +342,16 @@ func (d *DB) DraftByID(id core.ID) (dr core.Draft, err error) {
 	return
 }
 
+// UserNotes retrieves all notes that user posses into given collection, coll has to be pointer to slice
+func (d *DB) UserNotes(id core.ID, coll interface{}) error {
+	cur, err := d.Notes.Find(d.Ctx, bson.M{"author": id})
+	if err != nil {
+		return core.EI(err)
+	}
+
+	return core.EI(cur.All(d.Ctx, coll))
+}
+
 // NoteByID ...
 func (d *DB) NoteByID(id core.ID) (n core.Note, err error) {
 	err = d.Notes.FindOne(d.Ctx, ID(id)).Decode(&n)
@@ -344,16 +368,15 @@ func (d *DB) SetPublished(id core.ID, value bool) error {
 // IsAuthor returns ErrNotAuthor if given note has different author
 func (d *DB) IsAuthor(owner, note core.ID) error {
 	_, err := d.Notes.Find(d.Ctx, bson.M{"_id": note, "owner": owner})
-	err = AssertNotFound(err)
 	if err != nil {
-		err = ErrNotAuthor
+		return ErrNotAuthor
 	}
-	return err
+	return nil
 }
 
 // Note inserts note to database, also generates id
 func (d *DB) Note(nt *core.Note) (err error) {
-	nt.ID, err = d.NID(d.CounterN)
+	nt.ID, err = d.NID()
 	if err != nil {
 		return
 	}
@@ -384,6 +407,8 @@ func (d *DB) SearchNote(values core.SearchRequest, published bool) ([]core.NoteP
 		}
 	}
 
+	fmt.Println(notes)
+
 	return notes, nil
 }
 
@@ -396,7 +421,7 @@ func (d *DB) CommentByID(id core.ID) (n core.Comment, err error) {
 
 // Comment adds new comment to db
 func (d *DB) Comment(cm *core.Comment) (err error) {
-	cm.ID, err = d.NID(d.CounterC)
+	cm.ID, err = d.NID()
 	if err != nil {
 		return core.EI(err)
 	}
@@ -426,13 +451,13 @@ func (v *vCodeFactory) value() string {
 }
 
 // AssertNotFound makes sure error is equal to mongo.ErrNoDocuments and returns more user friendly ErrNotFound
-func AssertNotFound(err error) error {
+func AssertNotFound(err error, target, filter string) error {
 	if err != nil {
 		if err != mongo.ErrNoDocuments {
 			return core.EI(err)
 		}
 
-		return ErrNotFound
+		return ErrNotFound.Args(target, filter)
 	}
 
 	return nil

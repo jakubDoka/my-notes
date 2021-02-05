@@ -30,8 +30,8 @@ type (
 
 	// DraftResponce ...
 	DraftResponce struct {
-		Resp  Responce
-		Draft core.Draft
+		Resp   Responce
+		Drafts []core.Draft
 	}
 
 	// SaveResponce ...

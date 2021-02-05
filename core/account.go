@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jakubDoka/sterr"
@@ -94,8 +96,6 @@ type Note struct {
 	ID     ID `bson:"_id"`
 	Author ID
 
-	Likes IDS
-
 	Month, Year, School int
 
 	BornDate int64
@@ -126,20 +126,18 @@ type NotePreview struct {
 	Author   ID
 	BornDate uint64
 	Name     string
-	Likes    IDS
 	Content  string
 }
 
 // As String for testing purposes
 func (n *NotePreview) String() string {
-	return fmt.Sprintf("%d, %d, %s, %v, %s", n.ID, n.Author, n.Name, n.Likes, n.Content)
+	return fmt.Sprintf("%d, %d, %s, %s", n.ID, n.Author, n.Name, n.Content)
 }
 
 // Comment ...
 type Comment struct {
 	ID           ID `bson:"_id"`
 	BornDate     int64
-	Likes        IDS
 	Target       Target
 	Author, Note ID
 	Content      string
@@ -217,5 +215,12 @@ func FormatTime(millis int64) string {
 // SearchRequest ...
 type SearchRequest struct {
 	Name, School, Theme, Author, Subject string
-	Year, Month                          int
+
+	Year  int `urlp:"optional"`
+	Month int `urlp:"optional"`
+}
+
+// Testing returns whether this is test run
+func Testing() bool {
+	return strings.HasSuffix(os.Args[0], ".test.exe")
 }

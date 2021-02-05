@@ -5,11 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"myNotes/core"
 	"net/http"
 	"net/smtp"
 	"net/url"
-	"os"
-	"strings"
 	"text/template"
 
 	"github.com/jakubDoka/sterr"
@@ -25,7 +24,7 @@ type EmailAccount struct {
 
 func init() {
 	path := "email.json"
-	if strings.HasSuffix(os.Args[0], ".test.exe") {
+	if core.Testing() {
 		path = "C:/Users/jakub/Documents/programming/golang/src/myNotes/email.json"
 	}
 	bts, err := ioutil.ReadFile(path)
@@ -100,12 +99,16 @@ func NEmailSender(sender, password string, port int16) *EmailSender {
 
 // Send sends email with message to targets
 func (e *EmailSender) Send(message []byte, targets ...string) error {
-	return smtp.SendMail(e.Service, e.Auth, e.Sender, targets, message)
+	return core.EI(smtp.SendMail(e.Service, e.Auth, e.Sender, targets, message))
 }
 
 // FormatVerificationEmail creates verification email
 func FormatVerificationEmail(code, name string) []byte {
-	t, err := template.ParseFiles("C:/Users/jakub/Documents/programming/golang/src/myNotes/core/http/template.html")
+	path := "core/http/template.html"
+	if core.Testing() {
+		path = "C:/Users/jakub/Documents/programming/golang/src/myNotes/core/http/template.html"
+	}
+	t, err := template.ParseFiles(path)
 	if err != nil {
 		panic(err)
 	}

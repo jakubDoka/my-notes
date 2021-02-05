@@ -59,34 +59,34 @@ function createColor(color) {
 loadAccount(() => {
     loadProfile(user.Name, user.Cfg.Colors)
 
-    if(user.Notes == null) {
-
-        return
-    }
-
-    user.Notes.forEach(n => request("draft", {id: n}).then(j => {
+    request("usernotes", {id: user.ID}).then(j => {
         const err = getErr(j)
         if(err) {
             error2.innerHTML = err
             return
         }
-        j = j.Draft
-
-        const str = `<tr>
-        <td>${j.Name}</td>
-        <td>${j.Subject}</td>
-        <td>${j.Theme}</td>
-        <td>${j.Year}</td>
-        <td>${j.Month}</td>
-        <td><div style="background-color: ${ user.Cfg.Colors[1]};"><a href="editor.html?id=${j.ID}">edit</a></div></td>
-        </tr>`
-
-        if(j.Published) {
-            published.innerHTML += str
-        } else {
-            drafts.innerHTML += str
-        }
-    }))
+        
+        loadText("components/draft.html").then(t => {
+            for(var i in j.Drafts) {
+                const n = j.Drafts[i] 
+                const str = format(t, {
+                    name: n.Name, 
+                    subject: n.Subject, 
+                    color: user.Cfg.Colors[1], 
+                    theme: n.Theme,
+                    year: n.Year,
+                    month: n.Month,
+                    id: n.ID,
+                })
+        
+                if(n.Published) {
+                    published.innerHTML += str
+                } else {
+                    drafts.innerHTML += str
+                }
+            }
+        })
+    })
 })
 
 editB.onclick = function(e) {

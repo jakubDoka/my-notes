@@ -35,14 +35,14 @@ for(var i in elems) {
     e.oninput = input
 }
 
-if(id != "new") {
+if(id != "") {
     request("privatenote", {id: id}).then(j => {
         const err = getErr(j)
         if(err) {
             error.innerHTML = err
         } else {
             var n = j.Note
-            raw.value = n.Content.toString()
+            raw.value = n.Content
             ident.value = n.Name
             school.selectedIndex = n.School
             year.value = n.Year
@@ -61,31 +61,7 @@ var markdown = new Markdown(defaultColors)
 request("config").then(j => {
     console.log(j)
     markdown = new Markdown(j.Cfg.Colors)
-}).catch(e => {}).then(() => {
-    shortcuts.innerHTML = markdown.convert(
-        `<2><t>Shortcuts<t><2>
-
-<b>Alt<b>+<b>t<b> - creates <t>Title<t> text
-<b>Alt<b>+<b>b<b> - creates <b>bold<b> text
-<b>Alt<b>+<b>i<b> - creates <i>italic<i> text
-<b>Alt<b>+<b>u<b> - creates <u>underlined<u> text
-    
-<b>Alt<b>+<b>(1-9)<b> - creates <3>colored<3> <2>text<2>, colors can be configured
-    
-<b>Alt<b>+<b>e<b> - erases stile tags within selection but leaves the text
-
-<b>Alt<b>+<b>p<b> - switches to preview
-<b>Alt<b>+<b>r<b> - switches to raw
-
-<b>Alt<b>+<b>z<b> - undo
-<b>Alt<b>+<b>y<b> - redo
-<b>Alt<b>+<b>s<b> - save
-    
-its a <b><1>left<1><b> <b>Alt<b>
-
-you can also <1><b><u><t>combine<t><u><b><1> stiles, though using title in sentence is equivalent of screaming`
-    )
-})
+}).catch(e => {}).then(() => loadText("components/shortcuts.txt").then(t =>  shortcuts.innerHTML = markdown.convert(t)))
 
 var undo = new Undo(4, 200) 
 
@@ -156,14 +132,15 @@ save.onclick = function(ev) {
             'content-type': 'text/plain'
         },
         body: raw.value,
-    }).then(e => {
+    }).then(j => {
         const err = getErr(j)
         if(err) {
             error.innerHTML = err
         } else {
             save.disabled = true 
-            if(id != e.ID) {
-                window.location.href = `editor.html?id=${e.ID}`
+            console.log(j.ID)
+            if(id !== j.ID) {
+                window.location.href = `editor.html?id=${j.ID}`
             }
         }
     })
@@ -182,7 +159,7 @@ publish.onclick = function(ev) {
 
     error.innerHTML = ""
 
-    request("setpublished", {id: id, published: !published}).then( j => {
+    request("setpublished", {id: id, publish: !published}).then( j => {
         const err = getErr(j)
         if(err) {
             error.innerHTML = err

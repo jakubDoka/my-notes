@@ -90,7 +90,7 @@ const searchParams = ["name", "school", "year", "month", "subject", "theme", "au
 const schools = ["none", "elementary-middle", "high", "university"]
 
 async function search(query) {
-    return await fetch(buildRequest(searchParams, "search", query)).then(e => e.json())
+    return await fetch(buildRequest(searchParams, "search", query)).then(handleResponse)
 }
 
 function searchSetup() {
@@ -110,7 +110,15 @@ async function request(command, params, init) {
         return await fetch(command, init).then(re => re.json())
     }
 
-    return await fetch(buildRequest(Object.keys(params), command, params), init).then(re => re.json())
+    return await fetch(buildRequest(Object.keys(params), command, params), init).then(handleResponse)
+}
+
+async function handleResponse(re) {
+    if(re.status != 200) {
+        console.error(await re.text())
+        return
+    }
+    return await re.json()
 }
 
 function buildRequest(params, name, provided) {
@@ -153,7 +161,9 @@ function getErr(response) {
     if((response.Status) ? response.Status == "success" : response.Resp.Status == "success") {
         return undefined
     } else {
-        return (response.Status) ? response.Status : response.Resp.Status
+        const err = (response.Status) ? response.Status : response.Resp.Status
+        console.trace(err)
+        return err
     }
 }
 
@@ -182,6 +192,8 @@ class Time {
     }
 }
 
+const defaultColors = ["#b03830", "#b0972a", "#5d62f0"] 
+
 var user = undefined
 
 async function loadAccount(addition) {
@@ -202,3 +214,80 @@ async function loadAccount(addition) {
     }
 }
 
+async function loadText(path) {
+    return await fetch(path).then(r => r.text())
+}
+
+async function loadTemplate(path, args) {
+    const template = await fetch(path).then(r => r.text())
+    return Format(template, args)
+}
+
+function format(str, args) {
+    if (args instanceof Array) {
+        args.forEach((e, i) => {
+            str = str.replaceAll(`{${i}}`, e)
+        })
+    } else {
+        for(var pr in args) {
+            str = str.replaceAll(`{${pr}}`, args[pr])
+        }
+    }
+
+    return str
+}
+
+function registerLikeButton(like, counter, data, target, id) {
+    setLikeState(like, counter, data.State, data.Count)
+    console.log("pp")
+    like.onclick = async function(e) {
+        e.preventDefault()
+        console.log("pp")
+        request("like", {id: id, target: target, change: true}).then(j => {
+            const err = getErr(j)
+            if (err) {
+                alert(err)
+                return
+            }
+            setLikeState(like, counter, j.State, j.Count)
+        }) 
+    }
+}
+
+function setLikeState(like, counter, state, count) {
+    like.setAttribute("src", state ? "assets/liked.png": "assets/not-liked.png")
+    counter.innerHTML = count.toString()
+}
+
+async function embed(path, target) {
+    const e = document.getElementById(target)
+    const text = await loadText(path)
+    e.innerHTML = text
+    Rerun(e)
+}
+
+function Rerun(elem) {
+    elem.childNodes.forEach(element => {
+        if(element.tagName == "SCRIPT") {
+            var data = (element.text || element.textContent || element.innerHTML || "" ),
+            head = document.getElementsByTagName("head")[0] ||
+                      document.documentElement,
+            script = document.createElement("script");
+    
+            script.type = "text/javascript";
+            try {
+            // doesn't work on ie...
+            script.appendChild(document.createTextNode(data));      
+            } catch(e) {
+            // IE has funky script nodes
+            script.text = data;
+            }
+        
+            head.insertBefore(script, head.firstChild);
+            head.removeChild(script);
+        }
+        Rerun(element)
+    })
+}
+
+embed("components/menu.html", "menu")

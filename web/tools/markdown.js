@@ -20,8 +20,6 @@ function Colored(start, color) {
     return b 
 }
 
-const defaultColors = ["#b03830", "#b0972a", "#5d62f0"] 
-
 class Markdown {
     constructor(colors) {
         if(colors == null) {
